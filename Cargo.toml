@@ -1,0 +1,39 @@
+[package]
+name = "bevy_replicon_attributes"
+description = "Extends bevy_replicon with attribute-based visibility control"
+authors = ["koe <ukoe@protonmail.com>"]
+version = "0.0.1"
+edition = "2021"
+keywords = ["gamedev", "networking", "ecs", "visibility", "interest-management"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/UkoeHB/bevy_replicon_attributes"
+
+[workspace]
+members = [
+    "bevy_replicon_attributes_derive",
+]
+
+[lib]
+path = "src/lib.rs"
+doctest = false
+test = false
+
+[[test]]
+name = "tests"
+path = "tests/test/mod.rs"
+doctest = false
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+bevy           = { version = "0.12", default-features = false }
+siphasher      = { version = "1.0" }
+tracing        = { version = "0.1" }
+
+bevy_replicon_attributes_derive = { path = "bevy_replicon_attributes_derive", version = "0.1.0" }
+
+[dev-dependencies]
+tracing-subscriber = { version = "0.3" }
