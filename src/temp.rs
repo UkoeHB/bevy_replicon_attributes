@@ -2,6 +2,7 @@
 use crate::*;
 
 //third-party shortcuts
+use bevy::prelude::{Component, Deref};
 use siphasher::sip128::{Hasher128, SipHasher13};
 use smallvec::SmallVec;
 
@@ -71,22 +72,12 @@ impl VisibilityAttributeId
 
 //-------------------------------------------------------------------------------------------------------------------
 
-/// Returns the id of an attribute.
-///
-/// The id is a concatenation of the attribute's type id and its inner id.
-pub fn attribute_id<T: VisibilityAttribute + 'static>(attribute: &T) -> VisibilityAttributeId
-{
-    VisibilityAttributeId::new::<T>(attribute.inner_attribute_id())
-}
-
-//-------------------------------------------------------------------------------------------------------------------
-
 /// Id associated with a visibility condition.
 ///
 /// This is used to differentiate visibility conditions within the attribute engine's internal maps.
 /// The id has 64 bits of collision resistance, which should be adequate for the vast majority of use-cases.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub(crate) struct VisibilityConditionId(u128);
+pub struct VisibilityConditionId(u128);
 
 //-------------------------------------------------------------------------------------------------------------------
 
@@ -113,16 +104,25 @@ impl VisibilityAttribute for InCastleRoom
 }
 ```
 */
-pub trait VisibilityAttribute: 'static
+pub trait VisibilityAttribute: Sized + 'static
 {
-
     /// Returns the inner id of this attribute.
     ///
     /// If your attribute contains non-type information (e.g. a client id), then you should manually implement this
     /// trait.
     ///
     /// See [`attribute_id`] for how to get a [`VisibilityAttributeId`].
+    /// Note that ids are domain-separated by attribute type, so you can safely use the full `u64` range to define your
+    /// inner id.
     fn inner_attribute_id(&self) -> u64;
+
+    /// Returns the id of an attribute.
+    ///
+    /// By default the id is a concatenation of the attribute's type id and its inner id.
+    fn attribute_id(&self) -> VisibilityAttributeId
+    {
+        VisibilityAttributeId::new::<Self>(self.inner_attribute_id())
+    }
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -151,14 +151,11 @@ impl<T: DefaultVisibilityAttribute> VisibilityAttribute for T
 
 //-------------------------------------------------------------------------------------------------------------------
 
-/// Represents a visibility condition.
+/// Represents a type that can convert into a visibility condition.
 ///
-/// The condition may be a full condition or only a sub-expression in a larger condition.
-///
-/// The type that implements this can't be used direct. You need to extract it with a [`VisibilityConditionBuilder`]
-/// into a [`VisibilityConditionPack`] with [`build_pack`]. Then the condition can be evaluated with
-/// [`VisibilityConditionPack::evaluate`]
-pub trait VisibilityCondition: 'static
+/// The type that implements this can't be used direct. You need to extract it with [`VisibilityCondition::new`].
+/// Then the condition can be evaluated with [`VisibilityCondition::evaluate`].
+pub trait IntoVisibilityCondition: 'static
 {
     /// Builds the condition expression.
     fn build(self, builder: VisibilityConditionBuilder) -> VisibilityConditionBuilder;
@@ -180,7 +177,7 @@ where
 {
     fn from(a: A) -> Self
     {
-        Self::Root(attribute_id(&a))
+        Self::Root(a.attribute_id())
     }
 }
 
@@ -194,7 +191,7 @@ where
     }
 }
 
-impl<E> VisibilityCondition for VisibilityConditionWrapper<E>
+impl<E> IntoVisibilityCondition for VisibilityConditionWrapper<E>
 where
     E: VisibilityConditionExpression,
 {
@@ -217,18 +214,18 @@ where
 
 //-------------------------------------------------------------------------------------------------------------------
 
-/// Creates an 'attribute' visibility condition.
-pub fn attr<A>(a: A) -> impl VisibilityCondition
+/// Creates an ATTRIBUTE visibility condition.
+pub fn attr<A>(a: A) -> impl IntoVisibilityCondition
 where
     A: VisibilityAttribute + 'static,
 {
     VisibilityConditionWrapper::from(a)
 }
 
-/// Creates a 'not' visibility condition.
-pub fn not<C>(a: C) -> impl VisibilityCondition
+/// Creates a NOT visibility condition.
+pub fn not<C>(a: C) -> impl IntoVisibilityCondition
 where
-    C: VisibilityCondition + 'static,
+    C: IntoVisibilityCondition + 'static,
 {
     VisibilityConditionWrapper::from(
         move |mut builder: VisibilityConditionBuilder| -> VisibilityConditionBuilder
@@ -239,11 +236,11 @@ where
     )
 }
 
-/// Creates an 'and' visibility condition.
-pub fn and<C1, C2>(a: C1, b: C2) -> impl VisibilityCondition
+/// Creates an AND visibility condition.
+pub fn and<A, B>(a: A, b: B) -> impl IntoVisibilityCondition
 where
-    C1: VisibilityCondition + 'static,
-    C2: VisibilityCondition + 'static
+    A: IntoVisibilityCondition + 'static,
+    B: IntoVisibilityCondition + 'static
 {
     VisibilityConditionWrapper::from(
         move |mut builder: VisibilityConditionBuilder| -> VisibilityConditionBuilder
@@ -256,11 +253,11 @@ where
     )
 }
 
-/// Creates an 'or' visibility condition.
-pub fn or<C1, C2>(a: C1, b: C2) -> impl VisibilityCondition
+/// Creates an OR visibility condition.
+pub fn or<A, B>(a: A, b: B) -> impl IntoVisibilityCondition
 where
-    C1: VisibilityCondition + 'static,
-    C2: VisibilityCondition + 'static
+    A: IntoVisibilityCondition + 'static,
+    B: IntoVisibilityCondition + 'static
 {
     VisibilityConditionWrapper::from(
         move |mut builder: VisibilityConditionBuilder| -> VisibilityConditionBuilder
@@ -275,7 +272,7 @@ where
 
 //-------------------------------------------------------------------------------------------------------------------
 
-/// Represents a visibility condition node builder.
+/// Represents a visibility condition expression builder.
 pub trait VisibilityConditionExpression: FnOnce(VisibilityConditionBuilder) -> VisibilityConditionBuilder + 'static
 {}
 
@@ -288,6 +285,7 @@ pub type DummyVisClosure = fn(VisibilityConditionBuilder) -> VisibilityCondition
 
 //-------------------------------------------------------------------------------------------------------------------
 
+/// Visibility condition builder.
 pub struct VisibilityConditionBuilder
 {
     nodes: SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>,
@@ -302,6 +300,8 @@ impl VisibilityConditionBuilder
     }
 
     /// Pushes an empty node which will be set later.
+    ///
+    /// Allows defining how many `extra` nodes are associated with this node, to improve reallocation accuracy.
     fn push_empty(&mut self, extra: usize) -> usize
     {
         let position = self.nodes.len();
@@ -321,7 +321,7 @@ impl VisibilityConditionBuilder
     /// Assumes the next node to be inserted will be the start of the OR expression's child branch.
     fn push_not_node(&mut self)
     {
-        let next_node = self.nodes.len();
+        let next_node = self.nodes.len() + 1;
         self.nodes.reserve(2);
         self.nodes.push(VisibilityConditionNode::Not(next_node));
     }
@@ -359,43 +359,51 @@ impl VisibilityConditionBuilder
 
 //-------------------------------------------------------------------------------------------------------------------
 
-fn build_pack(condition: impl VisibilityCondition) -> VisibilityConditionPack
-{
-    let builder = VisibilityConditionBuilder::new();
-    let final_builder = condition.build(builder);
-    VisibilityConditionPack::new(final_builder.take())
-}
-
-//-------------------------------------------------------------------------------------------------------------------
-
-/// Max number of nodes for non-allocating [`VisibilityConditionPack`]s.
-pub(crate) const SMALL_PACK_LEN: usize = 3;
+/// Max number of nodes for non-allocating [`VisibilityCondition`]s.
+pub const SMALL_PACK_LEN: usize = 3;
 
 /// A type-erased visibility condition.
 ///
-/// Constructing a pack only requires allocations if the condition contains more than [`SMALL_PACK_LEN`] nodes.
+/// Constructing a condition only requires allocations if the condition contains more than [`SMALL_PACK_LEN`] nodes.
+///
+/// Cloning a condition will *not* allocate.
 ///
 /// Examples:
-/// - 1 node: `VisibleTo(Global)`
-/// - 2 nodes: `VisibleTo(!InABush)`
-/// - 3 nodes: `VisibleTo(IsFast && IsSmall)`
-/// - 4 nodes: `VisibleTo(IsSwimming && !WearingSwimsuit)`
+/// - 1 node: `VisibleTo::new(attr(Global))`
+/// - 2 nodes: `VisibleTo::new(not(attr(InABush)))`
+/// - 3 nodes: `VisibleTo::new(and(attr(IsFast), attr(IsSmall))`
+/// - 4 nodes: `VisibleTo::new(and(attr(IsSwimming), not(attr(WearingSwimsuit))))`
 #[derive(Debug, Clone, Hash)]
-pub struct VisibilityConditionPack
+pub enum VisibilityCondition
 {
-    condition: SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>,
+    Small(SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>),
+    Large(Arc<[VisibilityConditionNode]>),
 }
 
-impl VisibilityConditionPack
+impl VisibilityCondition
 {
-    /// Makes a new pack with the given condition writer.
-    pub(crate) fn new(condition: SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>) -> Self
+    /// Makes a new condition with the given node tree.
+    pub fn new(condition: impl IntoVisibilityCondition) -> Self
     {
-        Self{ condition }
+        let builder = VisibilityConditionBuilder::new();
+        let final_builder = condition.build(builder);
+        let condition = final_builder.take();
+
+        if !condition.spilled()
+        {
+            Self::Small(condition)
+        }
+        else
+        {
+            Self::Large(Arc::from(condition.into_vec()))
+        }
     }
 
     /// Gets the condition id.
-    pub(crate) fn id(&self) -> VisibilityConditionId
+    ///
+    /// Note that this requires hashing the internal condition, which may be expensive.
+    /// We don't cache the id here since it is 16 bytes.
+    pub fn condition_id(&self) -> VisibilityConditionId
     {
         let mut hasher = SipHasher13::new();
         self.hash(&mut hasher);
@@ -412,7 +420,11 @@ impl VisibilityConditionPack
             let VisibilityConditionNode::Attr(attr) = n else { return None; };
             Some(*attr)
         };
-        self.condition.iter().filter_map(filter)
+        match self
+        {
+            Self::Small(condition) => condition.iter().filter_map(filter),
+            Self::Large(condition) => condition.iter().filter_map(filter),
+        }
     }
 
     /// Evaluates the condition tree with the attribute evaluator.
@@ -420,35 +432,37 @@ impl VisibilityConditionPack
     /// Modifiers are automatically evaluated. The evaluator only checks if the given attribute is known.
     pub fn evaluate(&self, evaluator: impl Fn(VisibilityAttributeId) -> bool) -> bool
     {
-        evaluate(&evaluator, self.condition.as_slice(), 0)
+        match self
+        {
+            Self::Small(condition) => evaluate(&evaluator, condition.as_slice(), 0),
+            Self::Large(condition) => evaluate(&evaluator, condition, 0),
+        }
     }
 }
 
+impl PartialEq for VisibilityCondition
+{
+    fn eq(&self, other: &Self) -> bool
+    {
+        self.condition_id() == other.condition_id()
+    }
+}
+impl Eq for VisibilityCondition {}
+
 //-------------------------------------------------------------------------------------------------------------------
 
-/// Component that records the [`VisibilityCondition`] for an entity.
-//todo: add Component
-#[derive(Debug, Clone)]
-pub struct VisibleTo
-{
-    pub(crate) pack: VisibilityConditionPack,
-}
+/// Component that records the visibility for an entity.
+///
+/// Derefs to a [`VisibilityCondition`].
+#[derive(Component, Debug, Clone, Deref)]
+pub struct VisibleTo(VisibilityCondition);
 
 impl VisibleTo
 {
     /// Makes a new `VisibleTo` component.
-    pub fn new(condition: impl VisibilityCondition + 'static) -> Self
+    pub fn new(condition: impl IntoVisibilityCondition + 'static) -> Self
     {
-        Self{ pack: build_pack(condition) }
-    }
-
-    /// Gets the id of the validity condition.
-    ///
-    /// Note that this requires hashing the internal condition, which may be expensive.
-    /// We don't cache the id here since it is 16 bytes.
-    pub(crate) fn condition_id(&self) -> VisibilityConditionId
-    {
-        self.pack.id()
+        Self(VisibilityCondition::new(condition))
     }
 }
 
@@ -456,7 +470,7 @@ impl PartialEq for VisibleTo
 {
     fn eq(&self, other: &Self) -> bool
     {
-        self.condition_id() == other.condition_id()
+        self.0 == other.0
     }
 }
 impl Eq for VisibleTo {}
