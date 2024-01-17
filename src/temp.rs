@@ -38,7 +38,8 @@ fn evaluate(
 {
     match condition[current_node]
     {
-        VisibilityConditionNode::Empty      => { tracing::error!("encountered empty node when evaluating condition tree"); false },
+        VisibilityConditionNode::Empty =>
+        { tracing::error!("encountered empty node when evaluating condition tree"); false }
         VisibilityConditionNode::Attr(attr) => (inspector)(attr),
         VisibilityConditionNode::Not(a)     => !evaluate(inspector, condition, a),
         VisibilityConditionNode::And(a, b)  => evaluate(inspector, condition, a) && evaluate(inspector, condition, b),
@@ -164,8 +165,9 @@ pub trait VisibilityCondition
 
 //-------------------------------------------------------------------------------------------------------------------
 
-//todo: don't require 'static bound
-impl<T: VisibilityAttribute + 'static> VisibilityCondition for T
+impl<T> VisibilityCondition for T
+where
+    T: VisibilityAttribute + 'static,
 {
     fn inspect<'s, 'c: 's, 'b: 'c, 'i: 'b>(&'s self, inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>)
     {
@@ -179,11 +181,13 @@ impl<T: VisibilityAttribute + 'static> VisibilityCondition for T
         builder.attr_node(attribute_id(self));
     }
 }
-/*
+
 /// Creates a 'not' visibility condition.
-pub fn not<'s, 'a: 's, 'b: 'a>(a: impl VisibilityCondition + 'static) -> impl VisibilityConditionNodeClosure<'s, 'a, 'b>
+pub fn not<'s, 'c: 's, 'b: 'c, 'i: 'b, C>(a: C) -> impl VisibilityConditionNodeClosure<'s, 'c, 'b, 'i>
+where
+    C: VisibilityCondition + 'static,
 {
-    move |inspector: &'a mut VisibilityConditionInspector<'b>|
+    move |inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>|
     {
         if let Some(length) = inspector.length()
         {
@@ -199,21 +203,35 @@ pub fn not<'s, 'a: 's, 'b: 'a>(a: impl VisibilityCondition + 'static) -> impl Vi
 }
 
 /// Creates an 'and' visibility condition.
-pub fn and<'s, 'a: 's, 'b: 'a>(a: impl VisibilityCondition + 'static, b: impl VisibilityCondition + 'static) -> impl VisibilityConditionNodeClosure<'s, 'a, 'b>
+pub fn and<'s, 'c: 's, 'b: 'c, 'i: 'b, C1, C2>(
+    a: C1,
+    b: C2,
+) -> impl VisibilityConditionNodeClosure<'s, 'c, 'b, 'i>
+where
+    C1: VisibilityCondition + 'static,
+    C2: VisibilityCondition + 'static
 {
-    move |inspector: &'a mut VisibilityConditionInspector<'b>|
+    move |inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>|
     {
         if let Some(length) = inspector.length()
         {
             *length += 1;
+            // SAFETY: confusing lifetime issue (todo)
+            let ptr: *mut VisibilityConditionInspector<'_, '_, '_> = inspector;
+            let inspector = unsafe { &mut *ptr };
             a.inspect(inspector);
+            let inspector = unsafe { &mut *ptr };
             b.inspect(inspector);
             return;
         }
 
         let Some(builder) = inspector.builder() else { return; };
         let and_node = builder.increment();
+        // SAFETY: confusing lifetime issue (todo)
+        let ptr: *mut VisibilityConditionInspector<'_, '_, '_> = inspector;
+        let inspector = unsafe { &mut *ptr };
         a.inspect(inspector);
+        let inspector = unsafe { &mut *ptr };
 
         let Some(builder) = inspector.builder() else { return; };
         builder.and_node(and_node);
@@ -222,38 +240,64 @@ pub fn and<'s, 'a: 's, 'b: 'a>(a: impl VisibilityCondition + 'static, b: impl Vi
 }
 
 /// Creates an 'or' visibility condition.
-pub fn or<'s, 'a: 's, 'b: 'a>(a: impl VisibilityCondition + 'static, b: impl VisibilityCondition + 'static) -> impl VisibilityConditionNodeClosure<'s, 'a, 'b>
+pub fn or<'s, 'c: 's, 'b: 'c, 'i: 'b, C1, C2>(
+    a: C1,
+    b: C2,
+) -> impl VisibilityConditionNodeClosure<'s, 'c, 'b, 'i>
+where
+    C1: VisibilityCondition + 'static,
+    C2: VisibilityCondition + 'static
 {
-    move |inspector: &'a mut VisibilityConditionInspector<'b>|
+    move |inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>|
     {
         if let Some(length) = inspector.length()
         {
             *length += 1;
+            // SAFETY: confusing lifetime issue (todo)
+            let ptr: *mut VisibilityConditionInspector<'_, '_, '_> = inspector;
+            let inspector = unsafe { &mut *ptr };
             a.inspect(inspector);
+            let inspector = unsafe { &mut *ptr };
             b.inspect(inspector);
             return;
         }
 
         let Some(builder) = inspector.builder() else { return; };
         let or_node = builder.increment();
+        // SAFETY: confusing lifetime issue (todo)
+        let ptr: *mut VisibilityConditionInspector<'_, '_, '_> = inspector;
+        let inspector = unsafe { &mut *ptr };
         a.inspect(inspector);
+        let inspector = unsafe { &mut *ptr };
 
         let Some(builder) = inspector.builder() else { return; };
         builder.or_node(or_node);
         b.inspect(inspector);
     }
 }
- */
+
 //-------------------------------------------------------------------------------------------------------------------
 
 /// Represents a visibility condition node builder.
-pub trait VisibilityConditionNodeClosure<'s, 'c: 's, 'b: 'c, 'i: 'b> : Fn(&'c mut VisibilityConditionInspector<'c, 'b, 'i>) + 's {}
+pub trait VisibilityConditionNodeClosure<'s, 'c: 's, 'b: 'c, 'i: 'b>
+:
+    Fn(&'c mut VisibilityConditionInspector<'c, 'b, 'i>) + 's {}
 
 impl<'s, 'c: 's, 'b: 'c, 'i: 'b, F> VisibilityConditionNodeClosure<'s, 'c, 'b, 'i> for F
 where
     F: Fn(&'c mut VisibilityConditionInspector<'c, 'b, 'i>) + 's
 {}
 
+//this is clearly the wrong thing to do, but what's the solution?
+impl<'ss, 'cc: 'ss, 'bb: 'cc, 'ii: 'bb, T: VisibilityConditionNodeClosure<'ss, 'cc, 'bb, 'ii>> VisibilityCondition for T
+{
+    fn inspect<'s, 'c: 's, 'b: 'c, 'i: 'b>(&'s self, inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>)
+    {
+        (self)(inspector)
+    }
+}
+/*
+//this is only used for boxed traits, but we don't want to box here..
 pub type VisibilityConditionNodeClosureT = dyn for<'s, 'c, 'b, 'i> VisibilityConditionNodeClosure<'s, 'c, 'b, 'i, Output = ()>;
 
 impl VisibilityCondition for VisibilityConditionNodeClosureT
@@ -263,6 +307,7 @@ impl VisibilityCondition for VisibilityConditionNodeClosureT
         (self)(inspector)
     }
 }
+*/
 
 //-------------------------------------------------------------------------------------------------------------------
 
@@ -346,7 +391,7 @@ fn build_pack(condition: impl VisibilityCondition + 'static) -> VisibilityCondit
     // length
     let mut inspector = VisibilityConditionInspector::ComputeLength(0);
 
-    // SAFETY: `condition` is accessed immutably.
+    // SAFETY: confusing lifetime issue (todo)
     let ptr: *mut VisibilityConditionInspector<'_, '_, '_> = &mut inspector;
     let mut inspector = unsafe { &mut *ptr };
     condition.inspect(&mut inspector);
