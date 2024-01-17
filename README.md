@@ -15,7 +15,7 @@ For most users that should not be a concern, but long-running servers that conti
 TODO
 
 
-### [`bevy_replicon_repair`](https://github.com/UkoeHB/bevy_replicon_repair) Compatibility
+### [`bevy_replicon_repair`](https://github.com/UkoeHB/bevy_replicon_repair)
 
 If using this crate in combination with [`bevy_replicon_repair`](https://github.com/UkoeHB/bevy_replicon_repair), add this plugin to your server app:
 

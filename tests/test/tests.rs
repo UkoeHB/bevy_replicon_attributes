@@ -16,11 +16,11 @@ struct Test;
 #[test]
 fn basic()
 {
-    let visible_to = VisibleTo::new(Test);
-    let visible_to = VisibleTo::new(not(Test));
-    let visible_to = VisibleTo::new(and(Test, Test));
-    let visible_to = VisibleTo::new(or(Test, Test));
-    let visible_to = VisibleTo::new(or(not(Test), and(Test, not(Test))));
+    let visible_to = VisibleTo::new(attr(Test));
+    let visible_to = VisibleTo::new(not(attr(Test)));
+    let visible_to = VisibleTo::new(and(attr(Test), attr(Test)));
+    let visible_to = VisibleTo::new(or(attr(Test), attr(Test)));
+    let visible_to = VisibleTo::new(or(not(attr(Test)), and(attr(Test), not(attr(Test)))));
 }
 
 //-------------------------------------------------------------------------------------------------------------------

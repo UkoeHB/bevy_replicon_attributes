@@ -3,6 +3,7 @@ use crate::*;
 
 //third-party shortcuts
 use siphasher::sip128::{Hasher128, SipHasher13};
+use smallvec::SmallVec;
 
 //standard shortcuts
 use std::any::TypeId;
@@ -112,7 +113,7 @@ impl VisibilityAttribute for InCastleRoom
 }
 ```
 */
-pub trait VisibilityAttribute
+pub trait VisibilityAttribute: 'static
 {
 
     /// Returns the inner id of this attribute.
@@ -135,7 +136,7 @@ pub trait VisibilityAttribute
 /// not equal its default value.
 /// If that happens, you should manually implement [`VisibilityAttribute`] and define an appropriate inner attribute id
 /// for your type.
-pub trait DefaultVisibilityAttribute: Default + Eq + PartialEq {}
+pub trait DefaultVisibilityAttribute: Default + Eq + PartialEq + 'static {}
 
 impl<T: DefaultVisibilityAttribute> VisibilityAttribute for T
 {
@@ -154,259 +155,215 @@ impl<T: DefaultVisibilityAttribute> VisibilityAttribute for T
 ///
 /// The condition may be a full condition or only a sub-expression in a larger condition.
 ///
-/// The type that implements this can't be used direct. You need to extract it with a [`VisibilityConditionInspector`]
-/// into a [`VisibilityConditionPack`] with [`build_pack`]. Then condition can be evaluated with
+/// The type that implements this can't be used direct. You need to extract it with a [`VisibilityConditionBuilder`]
+/// into a [`VisibilityConditionPack`] with [`build_pack`]. Then the condition can be evaluated with
 /// [`VisibilityConditionPack::evaluate`]
-pub trait VisibilityCondition
+pub trait VisibilityCondition: 'static
 {
-    /// Inspects the visibility condition.
-    fn inspect<'s, 'c: 's, 'b: 'c, 'i: 'b>(&'s self, inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>);
+    /// Builds the condition expression.
+    fn build(self, builder: VisibilityConditionBuilder) -> VisibilityConditionBuilder;
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 
-impl<T> VisibilityCondition for T
+pub enum VisibilityConditionWrapper<E>
 where
-    T: VisibilityAttribute + 'static,
+    E: VisibilityConditionExpression,
 {
-    fn inspect<'s, 'c: 's, 'b: 'c, 'i: 'b>(&'s self, inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>)
-    {
-        if let Some(length) = inspector.length()
-        {
-            *length += 1;
-            return;
-        }
+    Root(VisibilityAttributeId),
+    Expression(E),
+}
 
-        let Some(builder) = inspector.builder() else { return; };
-        builder.attr_node(attribute_id(self));
+impl<A> From<A> for VisibilityConditionWrapper<DummyVisClosure>
+where
+    A: VisibilityAttribute,
+{
+    fn from(a: A) -> Self
+    {
+        Self::Root(attribute_id(&a))
     }
+}
+
+impl<E> From<E> for VisibilityConditionWrapper<E>
+where
+    E: VisibilityConditionExpression,
+{
+    fn from(e: E) -> Self
+    {
+        Self::Expression(e)
+    }
+}
+
+impl<E> VisibilityCondition for VisibilityConditionWrapper<E>
+where
+    E: VisibilityConditionExpression,
+{
+    fn build(self, mut builder: VisibilityConditionBuilder) -> VisibilityConditionBuilder
+    {
+        match self
+        {
+            Self::Root(id) =>
+            {
+                builder.push_attr_node(id);
+                builder
+            }
+            Self::Expression(expr) =>
+            {
+                (expr)(builder)
+            }
+        }
+    }
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+/// Creates an 'attribute' visibility condition.
+pub fn attr<A>(a: A) -> impl VisibilityCondition
+where
+    A: VisibilityAttribute + 'static,
+{
+    VisibilityConditionWrapper::from(a)
 }
 
 /// Creates a 'not' visibility condition.
-pub fn not<'s, 'c: 's, 'b: 'c, 'i: 'b, C>(a: C) -> impl VisibilityConditionNodeClosure<'s, 'c, 'b, 'i>
+pub fn not<C>(a: C) -> impl VisibilityCondition
 where
     C: VisibilityCondition + 'static,
 {
-    move |inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>|
-    {
-        if let Some(length) = inspector.length()
+    VisibilityConditionWrapper::from(
+        move |mut builder: VisibilityConditionBuilder| -> VisibilityConditionBuilder
         {
-            *length += 1;
-            a.inspect(inspector);
-            return;
+            builder.push_not_node();
+            a.build(builder)
         }
-
-        let Some(builder) = inspector.builder() else { return; };
-        builder.not_node();
-        a.inspect(inspector);
-    }
+    )
 }
 
 /// Creates an 'and' visibility condition.
-pub fn and<'s, 'c: 's, 'b: 'c, 'i: 'b, C1, C2>(
-    a: C1,
-    b: C2,
-) -> impl VisibilityConditionNodeClosure<'s, 'c, 'b, 'i>
+pub fn and<C1, C2>(a: C1, b: C2) -> impl VisibilityCondition
 where
     C1: VisibilityCondition + 'static,
     C2: VisibilityCondition + 'static
 {
-    move |inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>|
-    {
-        if let Some(length) = inspector.length()
+    VisibilityConditionWrapper::from(
+        move |mut builder: VisibilityConditionBuilder| -> VisibilityConditionBuilder
         {
-            *length += 1;
-            // SAFETY: confusing lifetime issue (todo)
-            let ptr: *mut VisibilityConditionInspector<'_, '_, '_> = inspector;
-            let inspector = unsafe { &mut *ptr };
-            a.inspect(inspector);
-            let inspector = unsafe { &mut *ptr };
-            b.inspect(inspector);
-            return;
+            let and_node = builder.push_empty(2);
+            let mut builder = a.build(builder);
+            builder.set_and_node(and_node);
+            b.build(builder)
         }
-
-        let Some(builder) = inspector.builder() else { return; };
-        let and_node = builder.increment();
-        // SAFETY: confusing lifetime issue (todo)
-        let ptr: *mut VisibilityConditionInspector<'_, '_, '_> = inspector;
-        let inspector = unsafe { &mut *ptr };
-        a.inspect(inspector);
-        let inspector = unsafe { &mut *ptr };
-
-        let Some(builder) = inspector.builder() else { return; };
-        builder.and_node(and_node);
-        b.inspect(inspector);
-    }
+    )
 }
 
 /// Creates an 'or' visibility condition.
-pub fn or<'s, 'c: 's, 'b: 'c, 'i: 'b, C1, C2>(
-    a: C1,
-    b: C2,
-) -> impl VisibilityConditionNodeClosure<'s, 'c, 'b, 'i>
+pub fn or<C1, C2>(a: C1, b: C2) -> impl VisibilityCondition
 where
     C1: VisibilityCondition + 'static,
     C2: VisibilityCondition + 'static
 {
-    move |inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>|
-    {
-        if let Some(length) = inspector.length()
+    VisibilityConditionWrapper::from(
+        move |mut builder: VisibilityConditionBuilder| -> VisibilityConditionBuilder
         {
-            *length += 1;
-            // SAFETY: confusing lifetime issue (todo)
-            let ptr: *mut VisibilityConditionInspector<'_, '_, '_> = inspector;
-            let inspector = unsafe { &mut *ptr };
-            a.inspect(inspector);
-            let inspector = unsafe { &mut *ptr };
-            b.inspect(inspector);
-            return;
+            let or_node = builder.push_empty(2);
+            let mut builder = a.build(builder);
+            builder.set_or_node(or_node);
+            b.build(builder)
         }
-
-        let Some(builder) = inspector.builder() else { return; };
-        let or_node = builder.increment();
-        // SAFETY: confusing lifetime issue (todo)
-        let ptr: *mut VisibilityConditionInspector<'_, '_, '_> = inspector;
-        let inspector = unsafe { &mut *ptr };
-        a.inspect(inspector);
-        let inspector = unsafe { &mut *ptr };
-
-        let Some(builder) = inspector.builder() else { return; };
-        builder.or_node(or_node);
-        b.inspect(inspector);
-    }
+    )
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 
 /// Represents a visibility condition node builder.
-pub trait VisibilityConditionNodeClosure<'s, 'c: 's, 'b: 'c, 'i: 'b>
-:
-    Fn(&'c mut VisibilityConditionInspector<'c, 'b, 'i>) + 's {}
-
-impl<'s, 'c: 's, 'b: 'c, 'i: 'b, F> VisibilityConditionNodeClosure<'s, 'c, 'b, 'i> for F
-where
-    F: Fn(&'c mut VisibilityConditionInspector<'c, 'b, 'i>) + 's
+pub trait VisibilityConditionExpression: FnOnce(VisibilityConditionBuilder) -> VisibilityConditionBuilder + 'static
 {}
 
-//this is clearly the wrong thing to do, but what's the solution?
-impl<'ss, 'cc: 'ss, 'bb: 'cc, 'ii: 'bb, T: VisibilityConditionNodeClosure<'ss, 'cc, 'bb, 'ii>> VisibilityCondition for T
-{
-    fn inspect<'s, 'c: 's, 'b: 'c, 'i: 'b>(&'s self, inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>)
-    {
-        (self)(inspector)
-    }
-}
-/*
-//this is only used for boxed traits, but we don't want to box here..
-pub type VisibilityConditionNodeClosureT = dyn for<'s, 'c, 'b, 'i> VisibilityConditionNodeClosure<'s, 'c, 'b, 'i, Output = ()>;
+impl<F> VisibilityConditionExpression for F
+where
+    F: FnOnce(VisibilityConditionBuilder) -> VisibilityConditionBuilder + 'static
+{}
 
-impl VisibilityCondition for VisibilityConditionNodeClosureT
-{
-    fn inspect<'s, 'c: 's, 'b: 'c, 'i: 'b>(&'s self, inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>)
-    {
-        (self)(inspector)
-    }
-}
-*/
+pub type DummyVisClosure = fn(VisibilityConditionBuilder) -> VisibilityConditionBuilder;
 
 //-------------------------------------------------------------------------------------------------------------------
 
-pub struct VisibilityConditionPackBuilder<'b, 'i: 'b>
+pub struct VisibilityConditionBuilder
 {
-    next_node: usize,
-    nodes: &'i mut [VisibilityConditionNode],
-    phantom: PhantomData<&'b()>,
+    nodes: SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>,
 }
 
-impl<'b, 'i: 'b> VisibilityConditionPackBuilder<'b, 'i>
+impl VisibilityConditionBuilder
 {
-    pub fn new(nodes: &'i mut [VisibilityConditionNode]) -> Self
+    /// Creates a new condition builder.
+    fn new() -> Self
     {
-        Self{ next_node: 0, nodes, phantom: PhantomData::default() }
+        Self{ nodes: SmallVec::default() }
     }
 
-    /// Increments the node index and returns the previous node index.
-    fn increment(&mut self) -> usize
+    /// Pushes an empty node which will be set later.
+    fn push_empty(&mut self, extra: usize) -> usize
     {
-        let prev = self.next_node;
-        self.next_node += 1;
-        prev
+        let position = self.nodes.len();
+        self.nodes.reserve(extra + 1);
+        self.nodes.push(VisibilityConditionNode::Empty);
+        position
     }
 
-    fn attr_node(&mut self, attr: VisibilityAttributeId)
+    /// Adds an ATTRIBUTE node to the end of the condition.
+    fn push_attr_node(&mut self, attr: VisibilityAttributeId)
     {
-        self.nodes[self.next_node] = VisibilityConditionNode::Attr(attr);
-        self.next_node += 1;
+        self.nodes.push(VisibilityConditionNode::Attr(attr));
     }
 
-    fn not_node(&mut self)
+    /// Adds a NOT node to the end of the condition.
+    ///
+    /// Assumes the next node to be inserted will be the start of the OR expression's child branch.
+    fn push_not_node(&mut self)
     {
-        self.nodes[self.next_node] = VisibilityConditionNode::Not(self.next_node + 1);
-        self.next_node += 1;
+        let next_node = self.nodes.len();
+        self.nodes.reserve(2);
+        self.nodes.push(VisibilityConditionNode::Not(next_node));
     }
 
-    fn and_node(&mut self, node: usize)
+    /// Sets an AND node at its branch root position.
+    ///
+    /// Assumes the next node to be inserted will be the start of the AND expression's right branch.
+    ///
+    /// Panics if the AND node position was not inserted with [`Self::push_empty`].
+    fn set_and_node(&mut self, node: usize)
     {
         let left = node + 1;
-        let right = self.next_node;
+        let right = self.nodes.len();
         self.nodes[node] = VisibilityConditionNode::And(left, right);
     }
 
-    fn or_node(&mut self, node: usize)
+    /// Sets an OR node at its branch root position.
+    ///
+    /// Assumes the next node to be inserted will be the start of the OR expression's right branch.
+    ///
+    /// Panics if the OR node position was not inserted with [`Self::push_empty`].
+    fn set_or_node(&mut self, node: usize)
     {
         let left = node + 1;
-        let right = self.next_node;
+        let right = self.nodes.len();
         self.nodes[node] = VisibilityConditionNode::Or(left, right);
     }
-}
 
-//-------------------------------------------------------------------------------------------------------------------
-
-pub enum VisibilityConditionInspector<'c, 'b: 'c, 'i: 'b>
-{
-    Ignored(PhantomData<&'c()>),
-    ComputeLength(usize),
-    AddNode(VisibilityConditionPackBuilder<'b, 'i>),
-}
-
-impl<'c, 'b: 'c, 'i: 'b> VisibilityConditionInspector<'c, 'b, 'i>
-{
-    fn length(&mut self) -> Option<&mut usize>
+    /// Takes the internal nodes.
+    fn take(self) -> SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>
     {
-        let Self::ComputeLength(length) = self else { return None; };
-        Some(length)
-    }
-
-    fn builder(&mut self) -> Option<&mut VisibilityConditionPackBuilder<'b, 'i>>
-    {
-        let Self::AddNode(builder) = self else { return None; };
-        Some(builder)
+        self.nodes
     }
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 
-fn build_pack(condition: impl VisibilityCondition + 'static) -> VisibilityConditionPack
+fn build_pack(condition: impl VisibilityCondition) -> VisibilityConditionPack
 {
-    // length
-    let mut inspector = VisibilityConditionInspector::ComputeLength(0);
-
-    // SAFETY: confusing lifetime issue (todo)
-    let ptr: *mut VisibilityConditionInspector<'_, '_, '_> = &mut inspector;
-    let mut inspector = unsafe { &mut *ptr };
-    condition.inspect(&mut inspector);
-    let inspector = unsafe { &mut *ptr };
-    let Some(len) = inspector.length() else { unreachable!(); };  //for some reason this gives mutable access issue
-
-    // pack
-    VisibilityConditionPack::new_with(*len,
-        |nodes|
-        {
-            let builder = VisibilityConditionPackBuilder::new(nodes);
-            let mut inspector = VisibilityConditionInspector::AddNode(builder);
-            condition.inspect(&mut inspector);
-        }
-    )
+    let builder = VisibilityConditionBuilder::new();
+    let final_builder = condition.build(builder);
+    VisibilityConditionPack::new(final_builder.take())
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -424,40 +381,17 @@ pub(crate) const SMALL_PACK_LEN: usize = 3;
 /// - 3 nodes: `VisibleTo(IsFast && IsSmall)`
 /// - 4 nodes: `VisibleTo(IsSwimming && !WearingSwimsuit)`
 #[derive(Debug, Clone, Hash)]
-pub enum VisibilityConditionPack
+pub struct VisibilityConditionPack
 {
-    Small{
-        condition: [VisibilityConditionNode; SMALL_PACK_LEN],
-    },
-    Large{
-        condition: Arc<[VisibilityConditionNode]>,
-    },
+    condition: SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>,
 }
 
 impl VisibilityConditionPack
 {
     /// Makes a new pack with the given condition writer.
-    pub(crate) fn new_with(len: usize, writer: impl FnOnce(&mut [VisibilityConditionNode])) -> Self
+    pub(crate) fn new(condition: SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>) -> Self
     {
-        if len <= SMALL_PACK_LEN
-        {
-            let mut pack = Self::Small{ condition: Default::default() };
-            let Self::Small{ mut condition } = &mut pack
-            else
-            {
-                // SAFETY: We just made this.
-                unsafe { std::hint::unreachable_unchecked() }
-            };
-            writer(condition.as_mut_slice());
-            pack
-        }
-        else
-        {
-            let mut condition = Vec::with_capacity(len);
-            condition.resize(len, VisibilityConditionNode::default());
-            writer(condition.as_mut_slice());
-            Self::Large{ condition: Arc::from(condition) }
-        }
+        Self{ condition }
     }
 
     /// Gets the condition id.
@@ -478,17 +412,7 @@ impl VisibilityConditionPack
             let VisibilityConditionNode::Attr(attr) = n else { return None; };
             Some(*attr)
         };
-        match self
-        {
-            Self::Small{ condition } =>
-            {
-                condition.iter().filter_map(filter)
-            }
-            Self::Large{ condition } =>
-            {
-                condition.iter().filter_map(filter)
-            }
-        }
+        self.condition.iter().filter_map(filter)
     }
 
     /// Evaluates the condition tree with the attribute evaluator.
@@ -496,17 +420,7 @@ impl VisibilityConditionPack
     /// Modifiers are automatically evaluated. The evaluator only checks if the given attribute is known.
     pub fn evaluate(&self, evaluator: impl Fn(VisibilityAttributeId) -> bool) -> bool
     {
-        match self
-        {
-            Self::Small{ condition } =>
-            {
-                evaluate(&evaluator, condition.as_slice(), 0)
-            }
-            Self::Large{ condition } =>
-            {
-                evaluate(&evaluator, condition, 0)
-            }
-        }
+        evaluate(&evaluator, self.condition.as_slice(), 0)
     }
 }
 
