@@ -16,7 +16,7 @@ use std::sync::Arc;
 /// - The root node records a visibility attribute.
 /// - Non-root nodes record indices into the flattened condition tree corresponding to their children.
 #[derive(Debug, Copy, Clone, Default, Hash)]
-pub(crate) enum VisibilityConditionNode
+pub enum VisibilityConditionNode
 {
     #[default]
     Empty,
@@ -156,7 +156,7 @@ impl<T: DefaultVisibilityAttribute> VisibilityAttribute for T
 /// The type that implements this can't be used direct. You need to extract it with a [`VisibilityConditionInspector`]
 /// into a [`VisibilityConditionPack`] with [`build_pack`]. Then condition can be evaluated with
 /// [`VisibilityConditionPack::evaluate`]
-pub(crate) trait VisibilityCondition
+pub trait VisibilityCondition
 {
     /// Inspects the visibility condition.
     fn inspect<'s, 'c: 's, 'b: 'c, 'i: 'b>(&'s self, inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>);
@@ -266,7 +266,7 @@ impl VisibilityCondition for VisibilityConditionNodeClosureT
 
 //-------------------------------------------------------------------------------------------------------------------
 
-struct VisibilityConditionPackBuilder<'b, 'i: 'b>
+pub struct VisibilityConditionPackBuilder<'b, 'i: 'b>
 {
     next_node: usize,
     nodes: &'i mut [VisibilityConditionNode],
@@ -275,7 +275,7 @@ struct VisibilityConditionPackBuilder<'b, 'i: 'b>
 
 impl<'b, 'i: 'b> VisibilityConditionPackBuilder<'b, 'i>
 {
-    fn new(nodes: &'i mut [VisibilityConditionNode]) -> Self
+    pub fn new(nodes: &'i mut [VisibilityConditionNode]) -> Self
     {
         Self{ next_node: 0, nodes, phantom: PhantomData::default() }
     }
@@ -317,7 +317,7 @@ impl<'b, 'i: 'b> VisibilityConditionPackBuilder<'b, 'i>
 
 //-------------------------------------------------------------------------------------------------------------------
 
-enum VisibilityConditionInspector<'c, 'b: 'c, 'i: 'b>
+pub enum VisibilityConditionInspector<'c, 'b: 'c, 'i: 'b>
 {
     Ignored(PhantomData<&'c()>),
     ComputeLength(usize),
@@ -345,8 +345,13 @@ fn build_pack(condition: impl VisibilityCondition + 'static) -> VisibilityCondit
 {
     // length
     let mut inspector = VisibilityConditionInspector::ComputeLength(0);
+
+    // SAFETY: `condition` is accessed immutably.
+    let ptr: *mut VisibilityConditionInspector<'_, '_, '_> = &mut inspector;
+    let mut inspector = unsafe { &mut *ptr };
     condition.inspect(&mut inspector);
-    let Some(len) = inspector.length() else { unreachable!(); };
+    let inspector = unsafe { &mut *ptr };
+    let Some(len) = inspector.length() else { unreachable!(); };  //for some reason this gives mutable access issue
 
     // pack
     VisibilityConditionPack::new_with(*len,
@@ -374,7 +379,7 @@ pub(crate) const SMALL_PACK_LEN: usize = 3;
 /// - 3 nodes: `VisibleTo(IsFast && IsSmall)`
 /// - 4 nodes: `VisibleTo(IsSwimming && !WearingSwimsuit)`
 #[derive(Debug, Clone, Hash)]
-pub(crate) enum VisibilityConditionPack
+pub enum VisibilityConditionPack
 {
     Small{
         condition: [VisibilityConditionNode; SMALL_PACK_LEN],
@@ -421,7 +426,7 @@ impl VisibilityConditionPack
     }
 
     /// Iterates attributes within the condition tree.
-    pub(crate) fn iter_attributes(&self) -> impl Iterator<Item = VisibilityAttributeId> + '_
+    pub fn iter_attributes(&self) -> impl Iterator<Item = VisibilityAttributeId> + '_
     {
         let filter = |n: &VisibilityConditionNode| -> Option<VisibilityAttributeId>
         {
@@ -444,7 +449,7 @@ impl VisibilityConditionPack
     /// Evaluates the condition tree with the attribute evaluator.
     ///
     /// Modifiers are automatically evaluated. The evaluator only checks if the given attribute is known.
-    pub(crate) fn evaluate(&self, evaluator: impl Fn(VisibilityAttributeId) -> bool) -> bool
+    pub fn evaluate(&self, evaluator: impl Fn(VisibilityAttributeId) -> bool) -> bool
     {
         match self
         {
@@ -482,7 +487,7 @@ impl VisibleTo
     ///
     /// Note that this requires hashing the internal condition, which may be expensive.
     /// We don't cache the id here since it is 16 bytes.
-    pub fn condition_id(&self) -> VisibilityConditionId
+    pub(crate) fn condition_id(&self) -> VisibilityConditionId
     {
         self.pack.id()
     }
