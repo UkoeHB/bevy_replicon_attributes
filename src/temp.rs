@@ -7,6 +7,7 @@ use siphasher::sip128::{Hasher128, SipHasher13};
 //standard shortcuts
 use std::any::TypeId;
 use std::hash::Hash;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -158,7 +159,7 @@ impl<T: DefaultVisibilityAttribute> VisibilityAttribute for T
 pub(crate) trait VisibilityCondition
 {
     /// Inspects the visibility condition.
-    fn inspect<'s, 'x: 's, 'y: 'x>(&'s self, inspector: &'x mut VisibilityConditionInspector<'y>);
+    fn inspect<'s, 'c: 's, 'b: 'c, 'i: 'b>(&'s self, inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -166,7 +167,7 @@ pub(crate) trait VisibilityCondition
 //todo: don't require 'static bound
 impl<T: VisibilityAttribute + 'static> VisibilityCondition for T
 {
-    fn inspect<'s, 'x: 's, 'y: 'x>(&'s self, inspector: &'x mut VisibilityConditionInspector<'y>)
+    fn inspect<'s, 'c: 's, 'b: 'c, 'i: 'b>(&'s self, inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>)
     {
         if let Some(length) = inspector.length()
         {
@@ -246,18 +247,18 @@ pub fn or<'s, 'a: 's, 'b: 'a>(a: impl VisibilityCondition + 'static, b: impl Vis
 //-------------------------------------------------------------------------------------------------------------------
 
 /// Represents a visibility condition node builder.
-pub trait VisibilityConditionNodeClosure<'s, 'a: 's, 'b: 'a> : Fn(&'a mut VisibilityConditionInspector<'b>) + 's {}
+pub trait VisibilityConditionNodeClosure<'s, 'c: 's, 'b: 'c, 'i: 'b> : Fn(&'c mut VisibilityConditionInspector<'c, 'b, 'i>) + 's {}
 
-impl<'s, 'a: 's, 'b: 'a, F> VisibilityConditionNodeClosure<'s, 'a, 'b> for F
+impl<'s, 'c: 's, 'b: 'c, 'i: 'b, F> VisibilityConditionNodeClosure<'s, 'c, 'b, 'i> for F
 where
-    F: Fn(&'a mut VisibilityConditionInspector<'b>) + 's
+    F: Fn(&'c mut VisibilityConditionInspector<'c, 'b, 'i>) + 's
 {}
 
-pub type VisibilityConditionNodeClosureT = dyn for<'a, 'b, 'c> VisibilityConditionNodeClosure<'a, 'b, 'c, Output = ()>;
+pub type VisibilityConditionNodeClosureT = dyn for<'s, 'c, 'b, 'i> VisibilityConditionNodeClosure<'s, 'c, 'b, 'i, Output = ()>;
 
 impl VisibilityCondition for VisibilityConditionNodeClosureT
 {
-    fn inspect<'s, 'x: 's, 'y: 'x>(self: &'s VisibilityConditionNodeClosureT, inspector: &'x mut VisibilityConditionInspector<'y>)
+    fn inspect<'s, 'c: 's, 'b: 'c, 'i: 'b>(&'s self, inspector: &'c mut VisibilityConditionInspector<'c, 'b, 'i>)
     {
         (self)(inspector)
     }
@@ -265,47 +266,48 @@ impl VisibilityCondition for VisibilityConditionNodeClosureT
 
 //-------------------------------------------------------------------------------------------------------------------
 
-struct VisibilityConditionPackBuilder<'a>
+struct VisibilityConditionPackBuilder<'b, 'i: 'b>
 {
     next_node: usize,
-    nodes: &'a mut [VisibilityConditionNode],
+    nodes: &'i mut [VisibilityConditionNode],
+    phantom: PhantomData<&'b()>,
 }
 
-impl<'a> VisibilityConditionPackBuilder<'a>
+impl<'b, 'i: 'b> VisibilityConditionPackBuilder<'b, 'i>
 {
-    fn new(nodes: &'a mut [VisibilityConditionNode]) -> Self
+    fn new(nodes: &'i mut [VisibilityConditionNode]) -> Self
     {
-        Self{ next_node: 0, nodes }
+        Self{ next_node: 0, nodes, phantom: PhantomData::default() }
     }
 
     /// Increments the node index and returns the previous node index.
-    fn increment(&'a mut self) -> usize
+    fn increment(&mut self) -> usize
     {
         let prev = self.next_node;
         self.next_node += 1;
         prev
     }
 
-    fn attr_node(&'a mut self, attr: VisibilityAttributeId)
+    fn attr_node(&mut self, attr: VisibilityAttributeId)
     {
         self.nodes[self.next_node] = VisibilityConditionNode::Attr(attr);
         self.next_node += 1;
     }
 
-    fn not_node(&'a mut self)
+    fn not_node(&mut self)
     {
         self.nodes[self.next_node] = VisibilityConditionNode::Not(self.next_node + 1);
         self.next_node += 1;
     }
 
-    fn and_node(&'a mut self, node: usize)
+    fn and_node(&mut self, node: usize)
     {
         let left = node + 1;
         let right = self.next_node;
         self.nodes[node] = VisibilityConditionNode::And(left, right);
     }
 
-    fn or_node(&'a mut self, node: usize)
+    fn or_node(&mut self, node: usize)
     {
         let left = node + 1;
         let right = self.next_node;
@@ -315,21 +317,22 @@ impl<'a> VisibilityConditionPackBuilder<'a>
 
 //-------------------------------------------------------------------------------------------------------------------
 
-enum VisibilityConditionInspector<'a>
+enum VisibilityConditionInspector<'c, 'b: 'c, 'i: 'b>
 {
+    Ignored(PhantomData<&'c()>),
     ComputeLength(usize),
-    AddNode(VisibilityConditionPackBuilder<'a>),
+    AddNode(VisibilityConditionPackBuilder<'b, 'i>),
 }
 
-impl<'a> VisibilityConditionInspector<'a>
+impl<'c, 'b: 'c, 'i: 'b> VisibilityConditionInspector<'c, 'b, 'i>
 {
-    fn length<'b>(&'b mut self) -> Option<&'b mut usize>
+    fn length(&mut self) -> Option<&mut usize>
     {
         let Self::ComputeLength(length) = self else { return None; };
         Some(length)
     }
 
-    fn builder<'b>(&'b mut self) -> Option<&'b mut VisibilityConditionPackBuilder<'a>>
+    fn builder(&mut self) -> Option<&mut VisibilityConditionPackBuilder<'b, 'i>>
     {
         let Self::AddNode(builder) = self else { return None; };
         Some(builder)
@@ -343,10 +346,10 @@ fn build_pack(condition: impl VisibilityCondition + 'static) -> VisibilityCondit
     // length
     let mut inspector = VisibilityConditionInspector::ComputeLength(0);
     condition.inspect(&mut inspector);
-    let VisibilityConditionInspector::ComputeLength(len) = inspector else { unreachable!(); };
+    let Some(len) = inspector.length() else { unreachable!(); };
 
     // pack
-    VisibilityConditionPack::new_with(len,
+    VisibilityConditionPack::new_with(*len,
         |nodes|
         {
             let builder = VisibilityConditionPackBuilder::new(nodes);
