@@ -240,11 +240,12 @@ where
                 and(into_condition!($a), into_condition!($a))
             )*
         }
-    };*/
+    };
+    //this one works but for consistency it is disabled until and/or also work
     (!$($inner:tt)+) =>
     {
         not(into_condition!($($inner)*))
-    };
+    };*/
     ($attribute:expr) =>
     {
         $attribute
@@ -264,7 +265,7 @@ where
 
 //-------------------------------------------------------------------------------------------------------------------
 
-/// Syntax sugar for the bundle `(Replication, VisibleTo::new([your visibility condition]))`.
+/// Syntax sugar for the bundle `(Replication, visible_to!([your visibility condition]))`.
 /// 
 /// Semantically, the bundle produced here replicates an entity to clients that match the specified visibility condition.
 /// 
