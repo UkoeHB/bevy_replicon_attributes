@@ -148,6 +148,7 @@ fn combo_check()
 #[test]
 fn condition_ids()
 {
+    // ATTRIBUTE
     let attribute1 = VisibilityCondition::new(attr(Test));
     let attribute2 = VisibilityCondition::new(attr(Dummy));
     let attribute3 = VisibilityCondition::new(attr(Manual(1)));
@@ -160,7 +161,7 @@ fn condition_ids()
     assert_eq!(attribute3.condition_id(), attribute3.condition_id());
     assert_ne!(attribute3.condition_id(), attribute4.condition_id());
 
-
+    // NOT
     let not1 = VisibilityCondition::new(not(attr(Test)));
     let not2 = VisibilityCondition::new(not(attr(Dummy)));
     let not3 = VisibilityCondition::new(not(attr(Manual(1))));
@@ -175,7 +176,7 @@ fn condition_ids()
     assert_ne!(not3.condition_id(), not4.condition_id());
     assert_ne!(not3.condition_id(), attribute3.condition_id());
 
-
+    // AND
     let and1 = VisibilityCondition::new(and(attr(Test), attr(Test)));
     let and2 = VisibilityCondition::new(and(attr(Test), attr(Dummy)));
     let and3 = VisibilityCondition::new(and(attr(Test), attr(Manual(1))));
@@ -192,7 +193,7 @@ fn condition_ids()
     assert_ne!(and3.condition_id(), attribute3.condition_id());
     assert_ne!(and3.condition_id(), not3.condition_id());
 
-
+    // OR
     let or1 = VisibilityCondition::new(or(attr(Test), attr(Test)));
     let or2 = VisibilityCondition::new(or(attr(Test), attr(Dummy)));
     let or3 = VisibilityCondition::new(or(attr(Test), attr(Manual(1))));
