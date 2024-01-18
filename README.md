@@ -3,15 +3,43 @@
 Extends [bevy_replicon](https://github.com/lifescapegame/bevy_replicon) with attributes-based visibility control for server entities and events.
 
 
-### Client reconnects
-
-By default all client attributes will be cleared when a client disconnects. If you want to preserve attributes, add this plugin to your server app:
+### Basic example
 
 ```rust
-app.add_plugins(AttributesRepairPlugin);
-```
+use bevy::prelude::*;
+use bevy_replicon::prelude::ClientId;
+use bevy_replicon_attributes::prelude::{ClientAttributes, VisibilityAttribute};
 
-You may also want to use [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) for preserving replicated state on clients.
+#[derive(Component)]
+struct Bat;
+
+#[derive(Event)]
+struct SpawnBat;
+
+#[derive(Event)]
+struct GainedNightVision(ClientId);
+
+#[derive(VisibilityAttribute, Default, PartialEq)]
+struct HasNightVision;
+
+fn spawn_bats(mut events: EventReader<SpawnBat>, mut commands: Commands)
+{
+    for _ in events.read()
+    {
+        commands.spawn((Bat, replicate_to!(HasNightVision)));
+    }
+}
+
+fn gain_night_vision(
+    mut events     : EventReader<GainedNightVision>,
+    mut attributes : ClientAttributes
+){
+    for client_id in events.read()
+    {
+        attributes.add(client_id, HasNightVision);
+    }
+}
+```
 
 
 ### Usage
@@ -44,6 +72,16 @@ use bevy_replicon_attributes::prelude::*;
 
 app.add_plugins(AttributesPlugin);
 ```
+
+#### Client reconnects
+
+By default all client attributes will be cleared when a client disconnects. If you want to preserve attributes, add this plugin to your server app:
+
+```rust
+app.add_plugins(AttributesRepairPlugin);
+```
+
+You may also want to use [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) for preserving replicated state on clients.
 
 #### Define attributes
 
