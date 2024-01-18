@@ -47,7 +47,7 @@ app.add_plugins(AttributesPlugin);
 
 #### Define attributes
 
-Basic attributes can be derived with `VisibilityAttribute`, which requires `Default` and `PartialEq`. Only zero-sized types should use this derive.
+Attributes can be derived with `VisibilityAttribute`, which requires `Default` and `PartialEq`. Only zero-sized types should use this derive.
 
 ```rust
 #[derive(VisibilityAttribute, Default, PartialEq)]
@@ -74,7 +74,7 @@ The [`inner_attribute_id`](bevy_replicon_attributes::VisibilityAttribute::inner_
 
 Attributes can be modified on clients with the [`ClientAttributes`](bevy_replicon_attributes::ClientAttributes) system parameter.
 
-A client's attribute list is used when evaluating entity [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition) to determine if entities should be replicated to the client.
+Client attributes are used when evaluating entity [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition) to determine if entities should be replicated to a client.
 
 ```rust
 use bevy::prelude::*;
@@ -112,7 +112,7 @@ Entity visibility is controlled by [`VisibilityConditions`](bevy_replicon_attrib
 
 Client attribute lists are evaluated against entity visibility conditions to determine if entities can be seen by clients.
 
-For convenience we have a [`visibility!()`](bevy_replicon_attributes::visibility) macro which produces new [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components (simple wrappers around [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition)).
+For convenience we have a [`vis!()`](bevy_replicon_attributes::visibility) macro which produces new [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components (simple wrappers around [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition)).
 
 Here is a low-level example how it works. In practice you only need to add attributes to clients and add [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components to entities. This crate will take care of translating that information into entity visibility within `bevy_replicon`.
 
@@ -130,7 +130,7 @@ fn entity_demo(
     let client_attributes = attributes.get(client_id).unwrap();
 
     // Make location condition.
-    let condition = visibility!(InLocation(0, 20));
+    let condition = vis!(InLocation(0, 20));
 
     // Evaluate condition.
     assert!(condition.evaluate(|a| client_attributes.contains(&a)));
@@ -143,18 +143,18 @@ fn entity_demo(
 Here are examples of more complex visibility conditions:
 ```rust
 // Basic
-visibility!();
-visibility!(A);
-visibility!(not(B));
-visibility!(or(A, B));
-visibility!(and(A, B));
-visibility!(and(A, not(B)));
+vis!();
+vis!(A);
+vis!(not(B));
+vis!(or(A, B));
+vis!(and(A, B));
+vis!(and(A, not(B)));
 
 // Composition
-visibility!(and(A, visibility!(B)));
+vis!(and(A, vis!(B)));
 
 // Modification
-visibility!()
+vis!()
     .and(A)
     .or(B)
     .replace(or(A, B), and(C(1), D))  //pattern replacement
@@ -176,7 +176,7 @@ fn easy_spawn(mut commands: Commands)
         (
             Ward,
             replicate_to!(and(InLocation(x, y), InTeam(team)))
-            //equivalent: (Replication, visibility!(and(InLocation(x, y), InTeam(team))))
+            //equivalent: (Replication, vis!(and(InLocation(x, y), InTeam(team))))
         )
     );
 }

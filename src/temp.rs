@@ -282,8 +282,8 @@ impl ClientAttributes
         self.cache.remove_client_attribute(&mut self.client_info, client_id, attribute.attribute_id());
     }
 
-    /// Accesses a client's attributes.
-    pub fn attributes(&self, client_id: ClientId) -> Option<&HashSet<VisibilityAttributeId>>
+    /// Gets a client's attributes.
+    pub fn get(&self, client_id: ClientId) -> Option<&HashSet<VisibilityAttributeId>>
     {
         self.cache.client_attributes(client_id)
     }
