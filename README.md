@@ -8,12 +8,12 @@ Extends [bevy_replicon](https://github.com/lifescapegame/bevy_replicon) with att
 TODO
 
 
-### [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair)
+### Client reconnects
 
-If using [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) in addition to this crate, add this plugin to your server app:
+By default all client attributes will be cleared when a client disconnects. If you want to preserve attributes, add this plugin to your server app:
 
 ```rust
-app.add_plugins(RepliconAttributesRepair);
+app.add_plugins(AttributesRepairPlugin);
 ```
 
-Note that you need to re-add a client's attributes immediately after they reconnect, otherwise previously-visible entities will be despawned.
+You may also want to use [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) for preserving replicated state on clients.

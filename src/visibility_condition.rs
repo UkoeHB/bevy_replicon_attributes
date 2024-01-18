@@ -189,6 +189,11 @@ impl Visibility
     {
         Self(VisibilityCondition::new(condition))
     }
+
+    //todo: replace() to replace a specific pattern
+    //todo: erase() to remove a specific pattern and simplify the condition
+    //todo: and() to extend the current condition
+    //todo: or() to extend the current condition
 }
 
 impl PartialEq for Visibility
