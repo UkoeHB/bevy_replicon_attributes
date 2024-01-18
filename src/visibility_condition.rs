@@ -75,10 +75,10 @@ pub const SMALL_PACK_LEN: usize = 3;
 /// Use [`Self::evaluate`] to evaluate the condition.
 ///
 /// Examples:
-/// - 1 node: `VisibilityCondition::new(attr(Global))`
-/// - 2 nodes: `VisibilityCondition::new(not(attr(InABush)))`
-/// - 3 nodes: `VisibilityCondition::new(and(attr(IsFast), attr(IsSmall))`
-/// - 4 nodes: `VisibilityCondition::new(and(attr(IsSwimming), not(attr(WearingSwimsuit))))`
+/// - 1 node: `VisibilityCondition::new(Global)`
+/// - 2 nodes: `VisibilityCondition::new(not(InABush))`
+/// - 3 nodes: `VisibilityCondition::new(and(IsFast, IsSmall)`
+/// - 4 nodes: `VisibilityCondition::new(and(IsSwimming, not(WearingSwimsuit)))`
 #[derive(Debug, Clone, Hash)]
 pub enum VisibilityCondition
 {

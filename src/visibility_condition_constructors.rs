@@ -3,6 +3,7 @@ use crate::*;
 
 //third-party shortcuts
 use bevy::prelude::{Component, Deref};
+use bevy_replicon::prelude::Replication;
 use siphasher::sip128::{Hasher128, SipHasher13};
 use smallvec::SmallVec;
 
@@ -27,29 +28,10 @@ where
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
-type DummyVisClosure = fn(VisibilityConditionBuilder) -> VisibilityConditionBuilder;
-
-//-------------------------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------------------------
-
-/// Wrapper enum that translates types into a type that implements [`IntoVisibilityCondition`].
-enum VisibilityConditionWrapper<E>
+/// Wrapper that allows [`IntoVisibilityCondition`] to be implemented for condition expressions.
+struct VisibilityConditionWrapper<E>(E)
 where
-    E: VisibilityConditionExpression,
-{
-    Root(VisibilityAttributeId),
-    Expression(E),
-}
-
-impl<A> From<A> for VisibilityConditionWrapper<DummyVisClosure>
-where
-    A: VisibilityAttribute,
-{
-    fn from(a: A) -> Self
-    {
-        Self::Root(a.attribute_id())
-    }
-}
+    E: VisibilityConditionExpression;
 
 impl<E> From<E> for VisibilityConditionWrapper<E>
 where
@@ -57,7 +39,7 @@ where
 {
     fn from(e: E) -> Self
     {
-        Self::Expression(e)
+        Self(e)
     }
 }
 
@@ -65,20 +47,9 @@ impl<E> IntoVisibilityCondition for VisibilityConditionWrapper<E>
 where
     E: VisibilityConditionExpression,
 {
-    fn build(self, mut builder: VisibilityConditionBuilder) -> VisibilityConditionBuilder
+    fn build(self, builder: VisibilityConditionBuilder) -> VisibilityConditionBuilder
     {
-        match self
-        {
-            Self::Root(id) =>
-            {
-                builder.push_attr_node(id);
-                builder
-            }
-            Self::Expression(expr) =>
-            {
-                (expr)(builder)
-            }
-        }
+        (self.0)(builder)
     }
 }
 
@@ -102,7 +73,7 @@ impl VisibilityConditionBuilder
     /// Pushes an empty node which will be set later.
     ///
     /// Allows defining how many `extra` nodes are associated with this node, to improve reallocation accuracy.
-    fn push_empty(&mut self, extra: usize) -> usize
+    pub(crate) fn push_empty(&mut self, extra: usize) -> usize
     {
         let position = self.nodes.len();
         self.nodes.reserve(extra + 1);
@@ -111,7 +82,7 @@ impl VisibilityConditionBuilder
     }
 
     /// Adds an ATTRIBUTE node to the end of the condition.
-    fn push_attr_node(&mut self, attr: VisibilityAttributeId)
+    pub(crate) fn push_attr_node(&mut self, attr: VisibilityAttributeId)
     {
         self.nodes.push(VisibilityConditionNode::Attr(attr));
     }
@@ -119,7 +90,7 @@ impl VisibilityConditionBuilder
     /// Adds a NOT node to the end of the condition.
     ///
     /// Assumes the next node to be inserted will be the start of the OR expression's child branch.
-    fn push_not_node(&mut self)
+    pub(crate) fn push_not_node(&mut self)
     {
         let next_node = self.nodes.len() + 1;
         self.nodes.reserve(2);
@@ -131,7 +102,7 @@ impl VisibilityConditionBuilder
     /// Assumes the next node to be inserted will be the start of the AND expression's right branch.
     ///
     /// Panics if the AND node position was not inserted with [`Self::push_empty`].
-    fn set_and_node(&mut self, node: usize)
+    pub(crate) fn set_and_node(&mut self, node: usize)
     {
         let left = node + 1;
         let right = self.nodes.len();
@@ -143,7 +114,7 @@ impl VisibilityConditionBuilder
     /// Assumes the next node to be inserted will be the start of the OR expression's right branch.
     ///
     /// Panics if the OR node position was not inserted with [`Self::push_empty`].
-    fn set_or_node(&mut self, node: usize)
+    pub(crate) fn set_or_node(&mut self, node: usize)
     {
         let left = node + 1;
         let right = self.nodes.len();
@@ -171,25 +142,6 @@ pub trait IntoVisibilityCondition: 'static
 
 //-------------------------------------------------------------------------------------------------------------------
 
-/// Creates an ATTRIBUTE visibility condition.
-///
-/**
-```rust
-#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
-struct A;
-
-let condition = VisibilityCondition::new(attr(A));
-``` 
-*/
-pub fn attr<A>(a: A) -> impl IntoVisibilityCondition
-where
-    A: VisibilityAttribute + 'static,
-{
-    VisibilityConditionWrapper::from(a)
-}
-
-//-------------------------------------------------------------------------------------------------------------------
-
 /// Creates a NOT visibility condition.
 ///
 /**
@@ -197,7 +149,7 @@ where
 #[derive(VisibilityAttribute, Default, Eq, PartialEq)]
 struct A;
 
-let condition = VisibilityCondition::new(not(attr(A)));
+let condition = VisibilityCondition::new(not(A));
 ``` 
 */
 pub fn not<C>(a: C) -> impl IntoVisibilityCondition
@@ -224,7 +176,7 @@ struct A;
 #[derive(VisibilityAttribute, Default, Eq, PartialEq)]
 struct B;
 
-let condition = VisibilityCondition::new(and(attr(A), attr(B)));
+let condition = VisibilityCondition::new(and(A, B));
 ``` 
 */
 pub fn and<A, B>(a: A, b: B) -> impl IntoVisibilityCondition
@@ -254,7 +206,7 @@ struct A;
 #[derive(VisibilityAttribute, Default, Eq, PartialEq)]
 struct B;
 
-let condition = VisibilityCondition::new(or(attr(A), attr(B)));
+let condition = VisibilityCondition::new(or(A, B));
 ``` 
 */
 pub fn or<A, B>(a: A, b: B) -> impl IntoVisibilityCondition
@@ -271,6 +223,63 @@ where
             b.build(builder)
         }
     )
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+#[macro_export] macro_rules! into_condition
+{
+    /*($a:expr + $b:expr) =>
+    {
+        and(into_condition!(a), into_condition!(b))
+    };
+    ($($a:tt),+) =>
+    {
+        {
+            $(
+                and(into_condition!($a), into_condition!($a))
+            )*
+        }
+    };*/
+    (!$($inner:tt)+) =>
+    {
+        not(into_condition!($($inner)*))
+    };
+    ($attribute:expr) =>
+    {
+        $attribute
+    };
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+/// Syntax sugar for [`VisibleTo::new`].
+#[macro_export] macro_rules! visible_to
+{
+    ($($condition:tt)+) =>
+    {
+        VisibleTo::new(into_condition!($($condition)*))
+    };
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+/// Syntax sugar for the bundle `(Replication, VisibleTo::new([your visibility condition]))`.
+/// 
+/// Semantically, the bundle produced here replicates an entity to clients that match the specified visibility condition.
+/// 
+/// Example:
+/**
+```rust
+commands.spawn((PlayerInventory, replicate_to!(IsClient(client_id))));
+```
+*/
+#[macro_export] macro_rules! replicate_to
+{
+    ($($condition:tt)+) =>
+    {
+        (Replication, visible_to!($($condition)*))
+    };
 }
 
 //-------------------------------------------------------------------------------------------------------------------

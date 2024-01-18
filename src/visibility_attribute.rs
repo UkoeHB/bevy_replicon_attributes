@@ -70,12 +70,21 @@ pub trait VisibilityAttribute: Sized + 'static
     /// inner id.
     fn inner_attribute_id(&self) -> u64;
 
-    /// Returns the id of an attribute.
+    /// Returns the id of the attribute.
     ///
     /// By default the id is a concatenation of the attribute's type id and its inner id.
     fn attribute_id(&self) -> VisibilityAttributeId
     {
         VisibilityAttributeId::new::<Self>(self.inner_attribute_id())
+    }
+}
+
+impl<T: VisibilityAttribute> IntoVisibilityCondition for T
+{
+    fn build(self, mut builder: VisibilityConditionBuilder) -> VisibilityConditionBuilder
+    {
+        builder.push_attr_node(self.attribute_id());
+        builder
     }
 }
 
