@@ -102,7 +102,7 @@ impl VisibilityCache
 
     /// Removes an entity that no longer has a replication condition.
     ///
-    /// Note: We update the `ClientsInfo` in case [`VisibleTo`] was removed from an entity that still has
+    /// Note: We update the `ClientsInfo` in case [`Visibility`] was removed from an entity that still has
     ///       the `Replication` component.
     //todo: updating `ClientsInfo` is redundant work
     pub(crate) fn remove_entity(&mut self, client_info: &mut ClientsInfo, entity: Entity)

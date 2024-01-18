@@ -274,18 +274,18 @@ where
 
 //-------------------------------------------------------------------------------------------------------------------
 
-/// Syntax sugar for [`VisibleTo::new`].
-#[macro_export] macro_rules! visible_to
+/// Syntax sugar for [`Visibility::new`].
+#[macro_export] macro_rules! visibility
 {
     ($($condition:tt)+) =>
     {
-        VisibleTo::new(into_condition!($($condition)*))
+        Visibility::new(into_condition!($($condition)*))
     };
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 
-/// Syntax sugar for the bundle `(Replication, visible_to!([your visibility condition]))`.
+/// Syntax sugar for the bundle `(Replication, visibility!([your visibility condition]))`.
 /// 
 /// Semantically, the bundle produced here replicates an entity to clients that match the specified visibility condition.
 /// 
@@ -299,7 +299,7 @@ commands.spawn((PlayerInventory, replicate_to!(IsClient(client_id))));
 {
     ($($condition:tt)+) =>
     {
-        (Replication, visible_to!($($condition)*))
+        (Replication, visibility!($($condition)*))
     };
 }
 

@@ -180,27 +180,27 @@ impl IntoVisibilityCondition for VisibilityCondition
 ///
 /// Derefs to a [`VisibilityCondition`].
 #[derive(Component, Debug, Clone, Deref)]
-pub struct VisibleTo(VisibilityCondition);
+pub struct Visibility(VisibilityCondition);
 
-impl VisibleTo
+impl Visibility
 {
-    /// Makes a new `VisibleTo` component.
+    /// Makes a new `Visibility` component.
     pub fn new(condition: impl IntoVisibilityCondition + 'static) -> Self
     {
         Self(VisibilityCondition::new(condition))
     }
 }
 
-impl PartialEq for VisibleTo
+impl PartialEq for Visibility
 {
     fn eq(&self, other: &Self) -> bool
     {
         self.0 == other.0
     }
 }
-impl Eq for VisibleTo {}
+impl Eq for Visibility {}
 
-impl IntoVisibilityCondition for VisibleTo
+impl IntoVisibilityCondition for Visibility
 {
     fn build(self, builder: VisibilityConditionBuilder) -> VisibilityConditionBuilder
     {
