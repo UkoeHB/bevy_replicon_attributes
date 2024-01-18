@@ -118,7 +118,7 @@ impl VisibilityCondition
         VisibilityConditionId(id.into())
     }
 
-    /// Iterates attributes within the condition tree.
+    /// Iterates attributes referenced in the condition tree.
     pub fn iter_attributes(&self) -> impl Iterator<Item = VisibilityAttributeId> + '_
     {
         let filter = |n: &VisibilityConditionNode| -> Option<VisibilityAttributeId>
