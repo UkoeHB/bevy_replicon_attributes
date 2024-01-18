@@ -15,7 +15,7 @@ pub(crate) fn derive_visibility_attribute_impl(input: TokenStream) -> TokenStrea
     ast.generics
         .make_where_clause()
         .predicates
-        .push(parse_quote! { Self: Default + Eq + PartialEq });
+        .push(parse_quote! { Self: Default + PartialEq });
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
     let struct_name = &ast.ident;
 

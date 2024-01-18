@@ -135,6 +135,12 @@ impl VisibilityCache
         self.attributes_buffer.push(attributes);
     }
 
+    /// Accesses a client's attributes.
+    pub(crate) fn client_attributes(&self, client_id: ClientId) -> Option<&HashSet<VisibilityAttributeId>>
+    {
+        self.clients.get(&client_id)
+    }
+
     /// Iterates a client's attributes.
     pub(crate) fn iter_client_attributes(&self, client_id: ClientId) -> impl Iterator<Item = VisibilityAttributeId> + '_
     {
@@ -246,23 +252,23 @@ impl VisibilityCache
 /// Example:
 /**
 ```rust
-#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+#[derive(VisibilityAttribute, Default, PartialEq)]
 struct IsDead;
 
-fn kill_player(In(client_id): In<ClientId>, mut visibility: ClientVisibility)
+fn kill_player(In(client_id): In<ClientId>, mut attributes: ClientAttributes)
 {
-    visibility.add(client_id, IsDead);
+    attributes.add(client_id, IsDead);
 }
 ```
 */
 #[derive(SystemParam)]
-pub struct ClientVisibility<'w, 's>
+pub struct ClientAttributes<'w, 's>
 {
     client_info: ResMut<'w, ClientsInfo>,
     cache: ResMut<'w, VisibilityCache>,
 }
 
-impl ClientVisibility
+impl ClientAttributes
 {
     /// Adds an attribute to a client.
     pub fn add<T: VisibilityAttribute>(&mut self, client_id: ClientId, attribute: T)
@@ -274,6 +280,12 @@ impl ClientVisibility
     pub fn remove<T: VisibilityAttribute>(&mut self, client_id: ClientId, attribute: T)
     {
         self.cache.remove_client_attribute(&mut self.client_info, client_id, attribute.attribute_id());
+    }
+
+    /// Accesses a client's attributes.
+    pub fn attributes(&self, client_id: ClientId) -> Option<&HashSet<VisibilityAttributeId>>
+    {
+        self.cache.client_attributes(client_id)
     }
 
     /// Iterates a client's attributes.

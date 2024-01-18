@@ -162,11 +162,31 @@ pub trait IntoVisibilityCondition: 'static
 
 //-------------------------------------------------------------------------------------------------------------------
 
+/// Creates an EMPTY visibility condition.
+///
+/**
+```rust
+let condition = VisibilityCondition::new(empty());
+``` 
+*/
+pub fn empty() -> impl IntoVisibilityCondition
+{
+    VisibilityConditionWrapper::from(
+        |mut builder: VisibilityConditionBuilder| -> VisibilityConditionBuilder
+        {
+            builder.push_empty(0);
+            builder
+        }
+    )
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 /// Creates a NOT visibility condition.
 ///
 /**
 ```rust
-#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+#[derive(VisibilityAttribute, Default, PartialEq)]
 struct A;
 
 let condition = VisibilityCondition::new(not(A));
@@ -191,9 +211,9 @@ where
 ///
 /**
 ```rust
-#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+#[derive(VisibilityAttribute, Default, PartialEq)]
 struct A;
-#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+#[derive(VisibilityAttribute, Default, PartialEq)]
 struct B;
 
 let condition = VisibilityCondition::new(and(A, B));
@@ -221,9 +241,9 @@ where
 ///
 /**
 ```rust
-#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+#[derive(VisibilityAttribute, Default, PartialEq)]
 struct A;
-#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+#[derive(VisibilityAttribute, Default, PartialEq)]
 struct B;
 
 let condition = VisibilityCondition::new(or(A, B));
@@ -270,6 +290,10 @@ where
     {
         $attribute
     };
+    () =>
+    {
+        empty()
+    };
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -277,7 +301,7 @@ where
 /// Syntax sugar for [`Visibility::new`].
 #[macro_export] macro_rules! visibility
 {
-    ($($condition:tt)+) =>
+    ($($condition:tt)*) =>
     {
         Visibility::new(into_condition!($($condition)*))
     };
@@ -297,7 +321,7 @@ commands.spawn((PlayerInventory, replicate_to!(IsClient(client_id))));
 */
 #[macro_export] macro_rules! replicate_to
 {
-    ($($condition:tt)+) =>
+    ($($condition:tt)*) =>
     {
         (Replication, visibility!($($condition)*))
     };

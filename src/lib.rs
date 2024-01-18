@@ -14,3 +14,8 @@ pub use crate::visibility_condition::*;
 pub use crate::visibility_condition_constructors::*;
 
 pub use bevy_replicon_attributes_derive::*;
+
+pub mod prelude
+{
+    pub use crate::*;
+}

@@ -25,7 +25,7 @@ fn evaluate(
     match condition[current_node]
     {
         VisibilityConditionNode::Empty =>
-        { tracing::error!("encountered empty node when evaluating condition tree"); false }
+        { tracing::error!("encountered empty node when evaluating condition tree"); true }
         VisibilityConditionNode::Attr(attr) => (inspector)(attr),
         VisibilityConditionNode::Not(a)     => !evaluate(inspector, condition, a),
         VisibilityConditionNode::And(a, b)  => evaluate(inspector, condition, a) && evaluate(inspector, condition, b),
@@ -94,6 +94,7 @@ impl VisibilityCondition
         let builder = VisibilityConditionBuilder::new();
         let final_builder = condition.build(builder);
         let condition = final_builder.take();
+        //todo: consolidate empty nodes
 
         if !condition.spilled()
         {
@@ -136,13 +137,13 @@ impl VisibilityCondition
     /// Evaluates the condition tree with an attribute evaluator.
     ///
     /// The evaluator should check if a given attribute is known. Modifiers (not/and/or) are automatically evaluated.
+    ///
+    /// Returns `true` for empty conditions.
     pub fn evaluate(&self, evaluator: impl Fn(VisibilityAttributeId) -> bool) -> bool
     {
-        match self
-        {
-            Self::Small(condition) => evaluate(&evaluator, condition.as_slice(), 0),
-            Self::Large(condition) => evaluate(&evaluator, condition, 0),
-        }
+        let slice = self.as_slice();
+        if slice.len() == 0 { return true; }
+        evaluate(&evaluator, slice, 0)
     }
 
     /// Accesses the inner condition tree as a sequence of nodes.
@@ -190,8 +191,10 @@ impl Visibility
         Self(VisibilityCondition::new(condition))
     }
 
-    //todo: replace() to replace a specific pattern
-    //todo: erase() to remove a specific pattern and simplify the condition
+    //todo: replace(a, b) to replace a specific pattern
+    //todo: replace_type<T>(a)
+    //todo: remove(a) to remove a specific pattern and simplify the condition
+    //todo: remove_type<T>()
     //todo: and() to extend the current condition
     //todo: or() to extend the current condition
 }

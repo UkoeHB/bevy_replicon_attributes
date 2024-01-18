@@ -31,6 +31,18 @@ impl VisibilityAttributeId
     {
         Self(TypeId::of::<T>(), inner_id)
     }
+
+    /// Gets the attribute's type id.
+    pub fn type_id(self) -> TypeId
+    {
+        self.0
+    }
+
+    /// Gets the attribute's inner id.
+    pub fn inner_id(self) -> u64
+    {
+        self.1
+    }
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -92,14 +104,14 @@ impl<T: VisibilityAttribute> IntoVisibilityCondition for T
 
 /// Implemented by the derive for [`VisibilityAttribute`].
 ///
-/// This trait requires `Default`, `Eq`, and `PartialEq` to enforce that only default-constructed objects can be
+/// This trait requires `Default` and `PartialEq` to enforce that only default-constructed objects can be
 /// assigned a default visibility attribute id.
 ///
 /// [`VisibilityAttribute::inner_attribute_id`] will panic on types that implement this if the attribute does
 /// not equal its default value.
 /// If that happens, you should manually implement [`VisibilityAttribute`] and define an appropriate inner attribute id
 /// for your type.
-pub trait DefaultVisibilityAttribute: Default + Eq + PartialEq + 'static {}
+pub trait DefaultVisibilityAttribute: Default + PartialEq + 'static {}
 
 impl<T: DefaultVisibilityAttribute> VisibilityAttribute for T
 {

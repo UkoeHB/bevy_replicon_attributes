@@ -9,10 +9,10 @@ use bevy_replicon_attributes::*;
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
-#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+#[derive(VisibilityAttribute, Default, PartialEq)]
 struct Dummy;
 
-#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+#[derive(VisibilityAttribute, Default, PartialEq)]
 struct Test;
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -41,6 +41,19 @@ fn test_macro()
     //let _ = visibility!(!Test | !Test);
     //let _ = visibility!(!(Test + Test) | (Test | Test));
     let _ = visibility!(and(Test, Test));
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+#[test]
+fn empty_check()
+{
+    let condition = visibility!();
+    assert!(condition.evaluate(|_| false));
+    assert!(condition.evaluate(|_| true));
+
+    let mut iter = condition.iter_attributes();
+    assert_eq!(iter.next(), None);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
