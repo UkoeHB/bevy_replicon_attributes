@@ -26,7 +26,7 @@ fn spawn_bats(mut events: EventReader<SpawnBat>, mut commands: Commands)
 {
     for _ in events.read()
     {
-        commands.spawn((Bat, replicate_to!(HasNightVision)));
+        commands.spawn((Bat, Replication, vis!(HasNightVision)));
     }
 }
 
@@ -106,11 +106,11 @@ impl VisibilityAttribute for InLocation
 }
 ```
 
-The [`inner_attribute_id`](bevy_replicon_attributes::VisibilityAttribute::inner_attribute_id) defined here is used to differentiate `InLocation` instances.
+The [`inner_attribute_id`](bevy_replicon_attributes::VisibilityAttribute::inner_attribute_id) defined here is used to differentiate attribute instances of the same type.
 
 #### Add attributes to a client
 
-Add and remove attributes on clients with the [`ClientAttributes`](bevy_replicon_attributes::ClientAttributes) system parameter.
+Add attributes to clients with the [`ClientAttributes`](bevy_replicon_attributes::ClientAttributes) system parameter.
 
 Client attributes are used when evaluating entity [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition) to determine if entities should be replicated to a client.
 
@@ -122,7 +122,7 @@ use bevy_replicon_attributes::prelude::*;
 #[derive(VisibilityAttribute, Default, PartialEq)]
 struct IsDisconnected;
 
-fn update_client_visibility_on_connect_events(
+fn update_visibility_on_connect_events(
     mut server_events : EventReader<ServerEvent>,
     mut attributes    : ClientAttributes,
 ){
@@ -148,7 +148,7 @@ fn update_client_visibility_on_connect_events(
 
 Entity visibility is controlled by [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition), which are arbitrary combinations of [`VisibilityAttributes`](bevy_replicon_attributes::VisibilityAttribute) and [`not()`](bevy_replicon_attributes::not)/[`and()`](bevy_replicon_attributes::and)/[`or()`](bevy_replicon_attributes::or) logic.
 
-Client attribute lists are evaluated against entity visibility conditions to determine if entities can be seen by clients.
+Entity visibility conditions are evaluated against client attribute lists to determine if entities can be seen by clients.
 
 For convenience we have a [`vis!()`](bevy_replicon_attributes::visibility) macro which produces new [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components (simple wrappers around [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition)).
 
