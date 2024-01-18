@@ -13,6 +13,77 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 //-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+/// Represents a visibility condition expression builder.
+trait VisibilityConditionExpression: FnOnce(VisibilityConditionBuilder) -> VisibilityConditionBuilder + 'static
+{}
+
+impl<F> VisibilityConditionExpression for F
+where
+    F: FnOnce(VisibilityConditionBuilder) -> VisibilityConditionBuilder + 'static
+{}
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+type DummyVisClosure = fn(VisibilityConditionBuilder) -> VisibilityConditionBuilder;
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+/// Wrapper enum that translates types into a type that implements [`IntoVisibilityCondition`].
+enum VisibilityConditionWrapper<E>
+where
+    E: VisibilityConditionExpression,
+{
+    Root(VisibilityAttributeId),
+    Expression(E),
+}
+
+impl<A> From<A> for VisibilityConditionWrapper<DummyVisClosure>
+where
+    A: VisibilityAttribute,
+{
+    fn from(a: A) -> Self
+    {
+        Self::Root(a.attribute_id())
+    }
+}
+
+impl<E> From<E> for VisibilityConditionWrapper<E>
+where
+    E: VisibilityConditionExpression,
+{
+    fn from(e: E) -> Self
+    {
+        Self::Expression(e)
+    }
+}
+
+impl<E> IntoVisibilityCondition for VisibilityConditionWrapper<E>
+where
+    E: VisibilityConditionExpression,
+{
+    fn build(self, mut builder: VisibilityConditionBuilder) -> VisibilityConditionBuilder
+    {
+        match self
+        {
+            Self::Root(id) =>
+            {
+                builder.push_attr_node(id);
+                builder
+            }
+            Self::Expression(expr) =>
+            {
+                (expr)(builder)
+            }
+        }
+    }
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 
 /// Visibility condition builder.
 pub struct VisibilityConditionBuilder
@@ -100,72 +171,16 @@ pub trait IntoVisibilityCondition: 'static
 
 //-------------------------------------------------------------------------------------------------------------------
 
-/// Represents a visibility condition expression builder.
-pub trait VisibilityConditionExpression: FnOnce(VisibilityConditionBuilder) -> VisibilityConditionBuilder + 'static
-{}
-
-impl<F> VisibilityConditionExpression for F
-where
-    F: FnOnce(VisibilityConditionBuilder) -> VisibilityConditionBuilder + 'static
-{}
-
-pub type DummyVisClosure = fn(VisibilityConditionBuilder) -> VisibilityConditionBuilder;
-
-//-------------------------------------------------------------------------------------------------------------------
-
-/// Wrapper enum that translates types into a type that implements [`IntoVisibilityCondition`].
-pub enum VisibilityConditionWrapper<E>
-where
-    E: VisibilityConditionExpression,
-{
-    Root(VisibilityAttributeId),
-    Expression(E),
-}
-
-impl<A> From<A> for VisibilityConditionWrapper<DummyVisClosure>
-where
-    A: VisibilityAttribute,
-{
-    fn from(a: A) -> Self
-    {
-        Self::Root(a.attribute_id())
-    }
-}
-
-impl<E> From<E> for VisibilityConditionWrapper<E>
-where
-    E: VisibilityConditionExpression,
-{
-    fn from(e: E) -> Self
-    {
-        Self::Expression(e)
-    }
-}
-
-impl<E> IntoVisibilityCondition for VisibilityConditionWrapper<E>
-where
-    E: VisibilityConditionExpression,
-{
-    fn build(self, mut builder: VisibilityConditionBuilder) -> VisibilityConditionBuilder
-    {
-        match self
-        {
-            Self::Root(id) =>
-            {
-                builder.push_attr_node(id);
-                builder
-            }
-            Self::Expression(expr) =>
-            {
-                (expr)(builder)
-            }
-        }
-    }
-}
-
-//-------------------------------------------------------------------------------------------------------------------
-
 /// Creates an ATTRIBUTE visibility condition.
+///
+/**
+```rust
+#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+struct A;
+
+let condition = VisibilityCondition::new(attr(A));
+``` 
+*/
 pub fn attr<A>(a: A) -> impl IntoVisibilityCondition
 where
     A: VisibilityAttribute + 'static,
@@ -176,6 +191,15 @@ where
 //-------------------------------------------------------------------------------------------------------------------
 
 /// Creates a NOT visibility condition.
+///
+/**
+```rust
+#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+struct A;
+
+let condition = VisibilityCondition::new(not(attr(A)));
+``` 
+*/
 pub fn not<C>(a: C) -> impl IntoVisibilityCondition
 where
     C: IntoVisibilityCondition + 'static,
@@ -192,6 +216,17 @@ where
 //-------------------------------------------------------------------------------------------------------------------
 
 /// Creates an AND visibility condition.
+///
+/**
+```rust
+#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+struct A;
+#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+struct B;
+
+let condition = VisibilityCondition::new(and(attr(A), attr(B)));
+``` 
+*/
 pub fn and<A, B>(a: A, b: B) -> impl IntoVisibilityCondition
 where
     A: IntoVisibilityCondition + 'static,
@@ -211,6 +246,17 @@ where
 //-------------------------------------------------------------------------------------------------------------------
 
 /// Creates an OR visibility condition.
+///
+/**
+```rust
+#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+struct A;
+#[derive(VisibilityAttribute, Default, Eq, PartialEq)]
+struct B;
+
+let condition = VisibilityCondition::new(or(attr(A), attr(B)));
+``` 
+*/
 pub fn or<A, B>(a: A, b: B) -> impl IntoVisibilityCondition
 where
     A: IntoVisibilityCondition + 'static,
