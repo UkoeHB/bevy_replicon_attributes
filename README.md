@@ -75,7 +75,7 @@ app.add_plugins(AttributesPlugin);
 
 #### Client reconnects
 
-By default all client attributes will be cleared when a client disconnects. If you want to preserve attributes, add this plugin to your server app:
+By default all client attributes will be cleared when a client disconnects. If you want to preserve attributes, add [`AttributesRepairPlugin`](bevy_replicon_attributes::AttributesRepairPlugin) to your server app:
 
 ```rust
 app.add_plugins(AttributesRepairPlugin);
@@ -110,7 +110,7 @@ The [`inner_attribute_id`](bevy_replicon_attributes::VisibilityAttribute::inner_
 
 #### Add attributes to a client
 
-Attributes can be modified on clients with the [`ClientAttributes`](bevy_replicon_attributes::ClientAttributes) system parameter.
+Add and remove attributes on clients with the [`ClientAttributes`](bevy_replicon_attributes::ClientAttributes) system parameter.
 
 Client attributes are used when evaluating entity [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition) to determine if entities should be replicated to a client.
 
@@ -152,7 +152,7 @@ Client attribute lists are evaluated against entity visibility conditions to det
 
 For convenience we have a [`vis!()`](bevy_replicon_attributes::visibility) macro which produces new [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components (simple wrappers around [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition)).
 
-Here is a low-level example how it works. In practice you only need to add attributes to clients and add [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components to entities. This crate will take care of translating that information into entity visibility within `bevy_replicon`.
+Here is a low-level example how it works. In practice you only need to add [`VisibilityAttributes`](bevy_replicon_attributes::VisibilityAttribute) to clients and [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components to entities. This crate will take care of translating that information into entity visibility within `bevy_replicon`.
 
 ```rust
 use bevy::prelude::*;
