@@ -198,6 +198,8 @@ impl VisibilityCache
     }
 
     /// Removes an entity after checking if it has a different condition than `check_condition`.
+    ///
+    /// Returns `false` if the check failed.
     fn remove_entity_with_check(
         &mut self,
         client_info     : &mut ClientsInfo,
@@ -247,20 +249,20 @@ impl VisibilityCache
 #[derive(VisibilityAttribute, Default, Eq, PartialEq)]
 struct IsDead;
 
-fn kill_player(In(client_id): In<ClientId>, mut visibility: VisibilityAttributes)
+fn kill_player(In(client_id): In<ClientId>, mut visibility: ClientVisibility)
 {
     visibility.add(client_id, IsDead);
 }
 ```
 */
 #[derive(SystemParam)]
-pub struct VisibilityAttributes<'w, 's>
+pub struct ClientVisibility<'w, 's>
 {
     client_info: ResMut<'w, ClientsInfo>,
     cache: ResMut<'w, VisibilityCache>,
 }
 
-impl VisibilityAttributes
+impl ClientVisibility
 {
     /// Adds an attribute to a client.
     pub fn add<T: VisibilityAttribute>(&mut self, client_id: ClientId, attribute: T)
