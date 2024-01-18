@@ -14,6 +14,16 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 //-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+enum UpdateType
+{
+    Insert,
+    Remove,
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 
 /// Caches internal buffers for mapping attribute-based visibility to replicon's entity-based visibility.
 #[derive(Resource, Default)]
@@ -65,8 +75,12 @@ impl VisibilityCache
         entity      : Entity,
         condition   : VisibilityCondition,
     ){
-        // Update entity map.
+        // Clean up previous condition.
         let condition_id = condition.condition_id();
+        if !self.remove_entity_with_check(self, client_info, entity, Some(condition_id))
+        { tracing::debug!(?entity, ?condition_id, "ignoring attempt to add an entity condition that already exists"); return; }
+
+        // Update entity map.
         self.entities.insert(entity, condition_id);
 
         // Update conditions map.
@@ -93,23 +107,7 @@ impl VisibilityCache
     //todo: updating `ClientsInfo` is redundant work
     pub(crate) fn remove_entity(&mut self, client_info: &mut ClientsInfo, entity: Entity)
     {
-        // Update entity map.
-        let Some(condition_id) = self.entities.remove(&entity) else { tracing::warn!("missing entity"); return; };
-
-        // Access conditions map.
-        let Some((condition, entities, clients)) = self.conditions.get_mut(&condition_id)
-        else { tracing::error!("missing condition on remove entity"); return; };
-
-        // Remove entity from tracked set for this condition.
-        if !entities.remove(entity) { tracing::error!("missing entity on remove entity"); }
-
-        // Update visibility of this entity for clients that can see this condition.
-        for client in clients.iter()
-        {
-            client_info.client_mut(*client)
-                .visibility_mut()
-                .set_visibility(entity, false);
-        }
+        self.remove_entity_with_check(self, client_info, entity, None);
     }
 
     /// Removes a client.
@@ -137,6 +135,16 @@ impl VisibilityCache
         self.attributes_buffer.push(attributes);
     }
 
+    /// Iterates a client's attributes.
+    pub(crate) fn iter_client_attributes(&self, client_id: ClientId) -> impl Iterator<Item = VisibilityAttributeId> + '_
+    {
+        self.clients
+            .get(&client_id)
+            .map(|a| a.iter().map(|a| *a))
+            .into_iter()
+            .flatten()
+    }
+
     /// Updates a client's visibility relative to a specific attribute.
     fn update_client_visibility(
         &mut self, 
@@ -150,8 +158,8 @@ impl VisibilityCache
             .entry(client_id)
             .or_insert_with(|| self.attributes_buffer.pop().or_default());
 
-        // Add the attribute to the client.
-        // - Leave if the client already has this attribute.
+        // Update the attribute for this client.
+        // - Leave if the update did nothing.
         match update
         {
             UpdateType::Insert => { if !client_attributes.insert(&attribute) { return; } }
@@ -189,14 +197,43 @@ impl VisibilityCache
         }
     }
 
-    /// Iterates a client's attributes.
-    pub(crate) fn iter_client_attributes(&self, client_id: ClientId) -> impl Iterator<Item = VisibilityAttributeId> + '_
+    /// Removes an entity after checking if it has a different condition than `check_condition`.
+    fn remove_entity_with_check(
+        &mut self,
+        client_info     : &mut ClientsInfo,
+        entity          : Entity,
+        check_condition : Option<VisibilityConditionId>,
+    ) -> bool
     {
-        self.clients
-            .get(&client_id)
-            .map(|a| a.iter().map(|a| *a))
-            .into_iter()
-            .flatten()
+        // Update entity map.
+        let Some(condition_id) = self.entities.remove(&entity) else { return true; };
+
+        // Check if removal was unwanted.
+        if let Some(check_condition) = check_condition
+        {
+            if check_condition == condition_id
+            {
+                self.entities.insert(entity, condition_id);
+                return false;
+            }
+        }
+
+        // Access conditions map.
+        let Some((condition, entities, clients)) = self.conditions.get_mut(&condition_id)
+        else { tracing::error!("missing condition on remove entity"); return true; };
+
+        // Remove entity from tracked set for this condition.
+        if !entities.remove(entity) { tracing::error!("missing entity on remove entity"); }
+
+        // Update visibility of this entity for clients that can see this condition.
+        for client in clients.iter()
+        {
+            client_info.client_mut(*client)
+                .visibility_mut()
+                .set_visibility(entity, false);
+        }
+
+        true
     }
 }
 
