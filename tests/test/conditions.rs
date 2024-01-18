@@ -248,6 +248,17 @@ fn condition_ids()
     assert_ne!(or3.condition_id(), attribute3.condition_id());
     assert_ne!(or3.condition_id(), not3.condition_id());
     assert_ne!(or3.condition_id(), and3.condition_id());
+
+    // COMBO
+    let combo1 = visibility!(or(Test, and(not(Test), Dummy)));
+    let combo2 = visibility!(and(Test, or(Manual(0), Dummy)));
+
+    assert_eq!(combo1.condition_id(), combo1.condition_id());
+    assert_ne!(combo1.condition_id(), combo2.condition_id());
+    assert_ne!(combo1.condition_id(), attribute1.condition_id());
+    assert_ne!(combo1.condition_id(), not1.condition_id());
+    assert_ne!(combo1.condition_id(), and1.condition_id());
+    assert_ne!(combo1.condition_id(), or1.condition_id());
 }
 
 //-------------------------------------------------------------------------------------------------------------------
