@@ -160,6 +160,29 @@ fn combo_check()
 //-------------------------------------------------------------------------------------------------------------------
 
 #[test]
+fn condition_composition()
+{
+    let a = visible_to!(Test);
+    let b = visible_to!(not(Dummy));
+    let c = visible_to!(or(Manual(0), Manual(1)));
+    let combo = visible_to!(and(a, and(b, c)));  //Test + !Dummy + (Manual(0) | Manual(1))
+
+    assert!(!combo.evaluate(|a| a == Test.attribute_id()));
+    assert!(!combo.evaluate(|a| a == Manual(0).attribute_id()));
+    assert!(!combo.evaluate(|a| a == Dummy.attribute_id()));
+    assert!(combo.evaluate(|a| a == Test.attribute_id() || a == Manual(0).attribute_id()));
+
+    let mut iter = combo.iter_attributes();
+    assert_eq!(iter.next(), Some(Test.attribute_id()));
+    assert_eq!(iter.next(), Some(Dummy.attribute_id()));
+    assert_eq!(iter.next(), Some(Manual(0).attribute_id()));
+    assert_eq!(iter.next(), Some(Manual(1).attribute_id()));
+    assert_eq!(iter.next(), None);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+#[test]
 fn condition_ids()
 {
     // ATTRIBUTE

@@ -144,6 +144,16 @@ impl VisibilityCondition
             Self::Large(condition) => evaluate(&evaluator, condition, 0),
         }
     }
+
+    /// Accesses the inner condition tree as a sequence of nodes.
+    pub fn as_slice(&self) -> &[VisibilityConditionNode]
+    {
+        match self
+        {
+            Self::Small(condition) => condition.as_slice(),
+            Self::Large(condition) => condition,
+        }
+    }
 }
 
 impl PartialEq for VisibilityCondition
@@ -154,6 +164,15 @@ impl PartialEq for VisibilityCondition
     }
 }
 impl Eq for VisibilityCondition {}
+
+impl IntoVisibilityCondition for VisibilityCondition
+{
+    fn build(self, mut builder: VisibilityConditionBuilder) -> VisibilityConditionBuilder
+    {
+        builder.push_branch(self.as_slice());
+        builder
+    }
+}
 
 //-------------------------------------------------------------------------------------------------------------------
 
@@ -180,5 +199,13 @@ impl PartialEq for VisibleTo
     }
 }
 impl Eq for VisibleTo {}
+
+impl IntoVisibilityCondition for VisibleTo
+{
+    fn build(self, builder: VisibilityConditionBuilder) -> VisibilityConditionBuilder
+    {
+        self.0.build(builder)
+    }
+}
 
 //-------------------------------------------------------------------------------------------------------------------

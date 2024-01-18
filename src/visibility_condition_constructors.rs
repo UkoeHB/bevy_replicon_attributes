@@ -121,6 +121,26 @@ impl VisibilityConditionBuilder
         self.nodes[node] = VisibilityConditionNode::Or(left, right);
     }
 
+    /// Pushes a condition branch into the tree.
+    pub(crate) fn push_branch(&mut self, branch: &[VisibilityConditionNode])
+    {
+        self.nodes.reserve(branch.len());
+        let len = self.nodes.len();
+
+        for mut node in branch.iter().copied()
+        {
+            match &mut node
+            {
+                VisibilityConditionNode::Empty     => (),
+                VisibilityConditionNode::Attr(_)   => (),
+                VisibilityConditionNode::Not(a)    => { *a += len; },
+                VisibilityConditionNode::And(a, b) => { *a += len; *b += len; },
+                VisibilityConditionNode::Or(a, b)  => { *a += len; *b += len; },
+            }
+            self.nodes.push(node);
+        }
+    }
+
     /// Takes the internal nodes.
     pub(crate) fn take(self) -> SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>
     {
