@@ -190,17 +190,41 @@ pub struct Visibility(VisibilityCondition);
 impl Visibility
 {
     /// Makes a new `Visibility` component.
-    pub fn new(condition: impl IntoVisibilityCondition + 'static) -> Self
+    pub fn new(condition: impl IntoVisibilityCondition) -> Self
     {
         Self(VisibilityCondition::new(condition))
+    }
+
+    /// Extends self with an AND relationship with another visibility condition.
+    ///
+    /// Example:
+    /**
+    let mut a = vis!(or(A, B));
+    a.and(and(C, not(D)));
+    // a == vis!(and(or(A, B), and(C, not(D))))
+    */
+    pub fn and(&mut self, other: impl IntoVisibilityCondition)
+    {
+        *self = Self::new(and(self.0.clone(), other));
+    }
+
+    /// Extends self with an OR relationship with another visibility condition.
+    ///
+    /// Example:
+    /**
+    let mut a = vis!(not(A));
+    a.or(B);
+    // a == vis!(or(not(A), B))
+    */
+    pub fn or(&mut self, other: impl IntoVisibilityCondition)
+    {
+        *self = Self::new(or(self.0.clone(), other));
     }
 
     //todo: replace(a, b) to replace a specific pattern
     //todo: replace_type<T>(a)
     //todo: remove(a) to remove a specific pattern and simplify the condition
     //todo: remove_type<T>()
-    //todo: and() to extend the current condition
-    //todo: or() to extend the current condition
 }
 
 impl PartialEq for Visibility

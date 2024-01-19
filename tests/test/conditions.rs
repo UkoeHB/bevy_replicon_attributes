@@ -15,6 +15,18 @@ struct Dummy;
 #[derive(VisibilityAttribute, Default, PartialEq)]
 struct Test;
 
+#[derive(VisibilityAttribute, Default, PartialEq)]
+struct A;
+
+#[derive(VisibilityAttribute, Default, PartialEq)]
+struct B;
+
+#[derive(VisibilityAttribute, Default, PartialEq)]
+struct C;
+
+#[derive(VisibilityAttribute, Default, PartialEq)]
+struct D;
+
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
@@ -272,6 +284,20 @@ fn condition_ids()
     assert_ne!(combo1.condition_id(), not1.condition_id());
     assert_ne!(combo1.condition_id(), and1.condition_id());
     assert_ne!(combo1.condition_id(), or1.condition_id());
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+#[test]
+fn visibility_extension()
+{
+    let mut a = vis!(or(A, B));
+    a.and(and(not(C), D));
+    assert_eq!(a, vis!(and(or(A, B), and(not(C), D))));
+
+    let mut a = vis!(not(A));
+    a.or(or(B, C));
+    assert_eq!(a, vis!(or(not(A), or(B, C))));
 }
 
 //-------------------------------------------------------------------------------------------------------------------
