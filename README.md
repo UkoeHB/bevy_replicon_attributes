@@ -7,7 +7,7 @@ Extends [bevy_replicon](https://github.com/lifescapegame/bevy_replicon) with att
 
 ```rust
 use bevy::prelude::*;
-use bevy_replicon::prelude::ClientId;
+use bevy_replicon::prelude::{ClientId, Replication};
 use bevy_replicon_attributes::prelude::{ClientAttributes, VisibilityAttribute};
 
 #[derive(Component)]
@@ -150,6 +150,8 @@ Entity visibility is controlled by [`VisibilityConditions`](bevy_replicon_attrib
 
 Entity visibility conditions are evaluated against client attribute lists to determine if entities can be seen by clients.
 
+An empty visibility condition always evaluates to `true`. This way if an entity has no `Visibility` component it will be visible to no clients (assuming you use a whitelist policy), if it has an empty `Visibility` it will be visible to all clients, and if it has a non-empty `Visibility` then it will be visible to clients that match the condition. Semantically, an empty condition matches 'anything', and a non-empty condition is equivalent to `and(ANYTHING, condition)`.
+
 For convenience we have a [`vis!()`](bevy_replicon_attributes::visibility) macro which produces new [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components (simple wrappers around [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition)).
 
 Here is a low-level example how it works. In practice you only need to add [`VisibilityAttributes`](bevy_replicon_attributes::VisibilityAttribute) to clients and [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components to entities. This crate will take care of translating that information into entity visibility within `bevy_replicon`.
@@ -202,7 +204,10 @@ vis!()
 
 ```
 
-Note that we include a [`replicate_to!()`](bevy_replicon_attributes::replicate_to) macro that simplifies spawning replicated entities.
+
+#### Replicating entities
+
+We include a [`replicate_to!()`](bevy_replicon_attributes::replicate_to) macro that simplifies spawning replicated entities.
 
 ```rust
 use bevy::prelude::*;

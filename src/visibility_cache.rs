@@ -4,14 +4,10 @@ use crate::*;
 //third-party shortcuts
 use bevy::prelude::*;
 use bevy_replicon::prelude::{ClientId, ClientsInfo};
-use siphasher::sip128::{Hasher128, SipHasher13};
-use smallvec::SmallVec;
 
 //standard shortcuts
-use std::any::TypeId;
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
-use std::marker::PhantomData;
-use std::sync::Arc;
 
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
@@ -26,7 +22,7 @@ enum UpdateType
 //-------------------------------------------------------------------------------------------------------------------
 
 /// Caches internal buffers for mapping attribute-based visibility to replicon's entity-based visibility.
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub(crate) struct VisibilityCache
 {
     /// [ attribute type id : [ condition id ] ]
@@ -41,9 +37,14 @@ pub(crate) struct VisibilityCache
     /// [ client : [ attribute type id ] ]
     clients: HashMap<ClientId, HashSet<VisibilityAttributeId>>,
 
-    /// Attribute sets cached for use by future clients.
-    /// [ attribute type id ]
-    attributes_buffer: Vec<HashSet<VisibilityAttributeId>>,
+    /// Condition id sets cached for future use.
+    condition_ids_buffer: Vec<HashSet<VisibilityConditionId>>,
+    /// Entity sets cached for use by future clients.
+    entities_buffer: Vec<EntityHashSet<Entity>>,
+    /// Client id sets cached for use by future clients.
+    client_ids_buffer: Vec<HashSet<ClientId>>,
+    /// Attribute id sets cached for use by future clients.
+    attribute_ids_buffer: Vec<HashSet<VisibilityAttributeId>>,
 }
 
 impl VisibilityCache
@@ -83,15 +84,42 @@ impl VisibilityCache
         // Update entity map.
         self.entities.insert(entity, condition_id);
 
+        // Access conditions map.
+        let mut entry = self.conditions.entry(&condition_id);
+
+        // Update attributes map if this is a new condition.
+        if Entry::Vacant(_) = &entry
+        {
+            for attribute_id in condition.iter_attributes()
+            {
+                if !self.attributes
+                    .entry(&attribute_id)
+                    .or_insert_with(|| self.condition_ids_buffer.pop().or_default())
+                    .insert(condition_id)
+                { tracing::error!(?attribute_id, ?condition_id, "found condition in attributes map unexpectedly"); }
+            }
+        }
+
         // Update conditions map.
-        let (condition, entities, clients) = self.conditions
-            .entry(&condition_id)
-            .or_insert_with(move || (condition, EntityHashSet::default(), HashSet::default()));
+        let (condition, entities, clients) = entry
+            .or_insert_with(
+                move ||
+                {
+                    (
+                        condition,
+                        self.entities_buffer.pop().or_default(),
+                        self.client_ids_buffer.pop().or_default(),
+                    )
+                }
+            );
 
         // Add entity to tracked set for this condition.
         entities.insert(entity);
 
         // Update visibility of this entity for clients that can see this condition.
+        // - Note that it's possible we are setting client visibilities back to `true` that were set to `false`
+        //   when cleaning up this entity's old condition. We assume that performance is about equivalent between
+        //   this brute-force approach and trying to only modify clients that don't have visibility of both conditions.
         for client in clients.iter()
         {
             client_info.client_mut(*client)
@@ -132,7 +160,8 @@ impl VisibilityCache
         }
 
         // Cache the attributes buffer for a future client.
-        self.attributes_buffer.push(attributes);
+        attributes.clear();
+        self.attribute_ids_buffer.push(attributes);
     }
 
     /// Accesses a client's attributes.
@@ -162,7 +191,7 @@ impl VisibilityCache
         // Access client attributes.
         let mut client_attributes = self.clients
             .entry(client_id)
-            .or_insert_with(|| self.attributes_buffer.pop().or_default());
+            .or_insert_with(|| self.attribute_ids_buffer.pop().or_default());
 
         // Update the attribute for this client.
         // - Leave if the update did nothing.
@@ -227,7 +256,7 @@ impl VisibilityCache
         }
 
         // Access conditions map.
-        let Some((condition, entities, clients)) = self.conditions.get_mut(&condition_id)
+        let Some((_, entities, clients)) = self.conditions.get_mut(&condition_id)
         else { tracing::error!("missing condition on remove entity"); return true; };
 
         // Remove entity from tracked set for this condition.
@@ -241,57 +270,55 @@ impl VisibilityCache
                 .set_visibility(entity, false);
         }
 
+        // Cleanup
+        if entities.len() == 0
+        {
+            // remove condition
+            let (condition, mut entities, mut clients) = self.conditions.remove(&condition_id).unwrap();
+
+            // remove condition from attributes map
+            for attribute_id in condition.iter_attributes()
+            {
+                let Some(condition_ids) = self.attributes.get_mut(&attribute_id)
+                else { tracing::error!("missing attribute on remove entity cleanup"); continue; };
+
+                if !condition_ids.remove(&condition_id)
+                { tracing::error!("missing condition on remove entity cleanup"); continue; }
+
+                // Cleanup
+                if condition_ids.len() == 0
+                {
+                    let mut condition_ids = self.attributes.remove(&attribute_id).unwrap();
+                    condition_ids.clear();
+                    self.condition_ids_buffer.push(condition_ids);
+                }
+            }
+
+            // save buffers
+            entities.clear();
+            clients.clear();
+            self.entities_buffer.push(entities);
+            self.client_ids_buffer.push(clients);
+        }
+
         true
     }
 }
 
-//-------------------------------------------------------------------------------------------------------------------
-
-/// System parameter for updating client visibility attributes.
-///
-/// Example:
-/**
-```rust
-#[derive(VisibilityAttribute, Default, PartialEq)]
-struct IsDead;
-
-fn kill_player(In(client_id): In<ClientId>, mut attributes: ClientAttributes)
+impl Default for VisibilityCache
 {
-    attributes.add(client_id, IsDead);
-}
-```
-*/
-#[derive(SystemParam)]
-pub struct ClientAttributes<'w, 's>
-{
-    client_info: ResMut<'w, ClientsInfo>,
-    cache: ResMut<'w, VisibilityCache>,
-}
-
-impl ClientAttributes
-{
-    /// Adds an attribute to a client.
-    pub fn add<T: VisibilityAttribute>(&mut self, client_id: ClientId, attribute: T)
+    fn default() -> Self
     {
-        self.cache.add_client_attribute(&mut self.client_info, client_id, attribute.attribute_id());
-    }
-
-    /// Removes an attribute from a client.
-    pub fn remove<T: VisibilityAttribute>(&mut self, client_id: ClientId, attribute: T)
-    {
-        self.cache.remove_client_attribute(&mut self.client_info, client_id, attribute.attribute_id());
-    }
-
-    /// Gets a client's attributes.
-    pub fn get(&self, client_id: ClientId) -> Option<&HashSet<VisibilityAttributeId>>
-    {
-        self.cache.client_attributes(client_id)
-    }
-
-    /// Iterates a client's attributes.
-    pub fn iter(&self, client_id: ClientId) -> impl Iterator<Item = VisibilityAttributeId> + '_
-    {
-        self.cache.iter_client_attributes(client_id)
+        Self{
+            attributes: HashMap::default(),
+            entities: EntityHashMap::default(),
+            conditions: HashMap::default(),
+            clients: HashMap::default(),
+            condition_ids_buffer: Vec::default(),
+            entities_buffer: Vec::default(),
+            client_ids_buffer: Vec::default(),
+            attribute_ids_buffer: Vec::default(),
+        }
     }
 }
 

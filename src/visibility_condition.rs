@@ -134,6 +134,16 @@ impl VisibilityCondition
         }
     }
 
+    /// Accesses the inner condition tree as a sequence of nodes.
+    pub fn as_slice(&self) -> &[VisibilityConditionNode]
+    {
+        match self
+        {
+            Self::Small(condition) => condition.as_slice(),
+            Self::Large(condition) => condition,
+        }
+    }
+
     /// Evaluates the condition tree with an attribute evaluator.
     ///
     /// The evaluator should check if a given attribute is known. Modifiers (not/and/or) are automatically evaluated.
@@ -144,16 +154,6 @@ impl VisibilityCondition
         let slice = self.as_slice();
         if slice.len() == 0 { return true; }
         evaluate(&evaluator, slice, 0)
-    }
-
-    /// Accesses the inner condition tree as a sequence of nodes.
-    pub fn as_slice(&self) -> &[VisibilityConditionNode]
-    {
-        match self
-        {
-            Self::Small(condition) => condition.as_slice(),
-            Self::Large(condition) => condition,
-        }
     }
 }
 
@@ -178,6 +178,12 @@ impl IntoVisibilityCondition for VisibilityCondition
 //-------------------------------------------------------------------------------------------------------------------
 
 /// Component that records the visibility for an entity.
+///
+/// An empty visibility condition always evaluates to `true`. This way if an entity has no `Visibility` component it will
+/// be visible to no clients, if it has an empty `Visibility` it will be visible to all clients, and if it has a non-empty
+/// `Visibility` then it will be visible to clients that match the condition.
+///
+/// Semantically, an empty condition matches 'anything', and a non-empty condition is equivalent to `and(ANYTHING, condition)`.
 ///
 /// Derefs to a [`VisibilityCondition`].
 #[derive(Component, Debug, Clone, Deref)]

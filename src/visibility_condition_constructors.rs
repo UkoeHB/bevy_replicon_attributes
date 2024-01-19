@@ -267,6 +267,7 @@ where
 
 //-------------------------------------------------------------------------------------------------------------------
 
+/// Translates a token sequence into a type that implements [`IntoVisibilityCondition`].
 #[macro_export] macro_rules! into_condition
 {
     /*($a:expr + $b:expr) =>
@@ -277,7 +278,7 @@ where
     {
         {
             $(
-                and(into_condition!($a), into_condition!($a))
+                or(into_condition!($a), into_condition!($a))
             )*
         }
     };
