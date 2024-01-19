@@ -65,23 +65,16 @@ app.add_plugins(bevy::time::TimePlugin)  //required by bevy_renet
     );
 ```
 
-Add [`AttributesPlugin`](bevy_replicon_attributes::AttributesPlugin) to your server app:
+Add [`VisibilityAttributesPlugin`](bevy_replicon_attributes::VisibilityAttributesPlugin) to your server app. You must specify a [`ReconnectPolicy`](bevy_replicon_attributes::ReconnectPolicy):
 
 ```rust
 use bevy_replicon_attributes::prelude::*;
 
-app.add_plugins(AttributesPlugin);
+app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Cleanup });
 ```
 
-#### Client reconnects
+If you choose [`ReconnectPolicy::Repair`](bevy_replicon_attributes::ReconnectPolicy::Repair), we recommend also using [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) for preserving replicated state on clients.
 
-By default all client attributes will be cleared when a client disconnects. If you want to preserve attributes, add [`AttributesRepairPlugin`](bevy_replicon_attributes::AttributesRepairPlugin) to your server app:
-
-```rust
-app.add_plugins(AttributesRepairPlugin);
-```
-
-You may also want to use [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) for preserving replicated state on clients.
 
 #### Define attributes
 
@@ -152,7 +145,7 @@ Entity visibility conditions are evaluated against client attribute lists to det
 
 An empty visibility condition always evaluates to `true`. This way if an entity has no `Visibility` component it will be visible to no clients (assuming you use a whitelist policy), if it has an empty `Visibility` it will be visible to all clients, and if it has a non-empty `Visibility` then it will be visible to clients that match the condition. Semantically, an empty condition matches 'anything', and a non-empty condition is equivalent to `and(ANYTHING, condition)`.
 
-For convenience we have a [`vis!()`](bevy_replicon_attributes::visibility) macro which produces new [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components (simple wrappers around [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition)).
+For convenience we have a [`vis!()`](bevy_replicon_attributes::vis) macro which produces new [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components (simple wrappers around [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition)).
 
 Here is a low-level example how it works. In practice you only need to add [`VisibilityAttributes`](bevy_replicon_attributes::VisibilityAttribute) to clients and [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components to entities. This crate will take care of translating that information into entity visibility within `bevy_replicon`.
 

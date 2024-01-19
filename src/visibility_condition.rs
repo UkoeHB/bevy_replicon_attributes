@@ -7,9 +7,7 @@ use siphasher::sip128::{Hasher128, SipHasher13};
 use smallvec::SmallVec;
 
 //standard shortcuts
-use std::any::TypeId;
 use std::hash::Hash;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 //-------------------------------------------------------------------------------------------------------------------

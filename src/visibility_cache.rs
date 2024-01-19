@@ -10,7 +10,6 @@ use bevy_replicon::prelude::ClientCache;
 //standard shortcuts
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
 
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
@@ -55,33 +54,80 @@ impl VisibilityCache
     /// Adds an attribute to a client.
     pub(crate) fn add_client_attribute(
         &mut self,
-        client_info : &mut ClientCache,
-        client_id   : ClientId,
-        attribute   : VisibilityAttributeId,
+        client_cache : &mut ClientCache,
+        client_id    : ClientId,
+        attribute    : VisibilityAttributeId,
     ){
-        self.update_client_visibility(client_info, client_id, attribute, UpdateType::Insert);
+        self.update_client_visibility(client_cache, client_id, attribute, UpdateType::Insert);
     }
 
     /// Removes an attribute from a client.
     pub(crate) fn remove_client_attribute(
         &mut self,
-        client_info : &mut ClientCache,
-        client_id   : ClientId,
-        attribute   : VisibilityAttributeId,
+        client_cache : &mut ClientCache,
+        client_id    : ClientId,
+        attribute    : VisibilityAttributeId,
     ){
-        self.update_client_visibility(client_info, client_id, attribute, UpdateType::Remove);
+        self.update_client_visibility(client_cache, client_id, attribute, UpdateType::Remove);
+    }
+
+    /// Repairs a client by refreshing visibility of all entities in the `ClientCache`.
+    ///
+    /// Panics if the client is not connected.
+    pub(crate) fn repair_client(&mut self, client_cache: &mut ClientCache, client_id: ClientId)
+    {
+        // Access client attributes.
+        let client_attributes = self.clients
+            .entry(client_id)
+            .or_insert_with(|| self.attribute_ids_buffer.pop().unwrap_or_default());
+
+        // Get client visibility settings.
+        let visibility_settings = client_cache.client_mut(client_id).visibility_mut();
+
+        // Iterate all client attributes
+        for client_attribute in client_attributes.iter()
+        {
+            // Access conditions associated with this attribute.
+            let Some(condition_ids) = self.attributes.get(&client_attribute) else { continue; };
+
+            // Update the entity and client sets attached to each condition.
+            for condition_id in condition_ids.iter()
+            {
+                let Some((condition, entities, clients)) = self.conditions.get_mut(condition_id)
+                else { tracing::error!("missing condition on repair client visibility"); continue; };
+
+                // Evaluate client visibility for this condition.
+                let visibility = condition.evaluate(|a| client_attributes.contains(&a));
+
+                // Save the client's visibility of this condition.
+                match visibility
+                {
+                    true  => { clients.insert(client_id); }
+                    false => { clients.remove(&client_id); }
+                }
+
+                // Set visibility for entities attached to this condition.
+                // - Ignore disconnected clients.
+                tracing::trace!(?client_id, ?entities, "visibility {visibility}");
+
+                for entity in entities.iter()
+                {
+                    visibility_settings.set_visibility(*entity, visibility);
+                }
+            }
+        }
     }
 
     /// Updates an entity's visibility condition.
     pub(crate) fn add_entity_condition(
         &mut self,
-        client_info : &mut ClientCache,
-        entity      : Entity,
-        condition   : VisibilityCondition,
+        client_cache : &mut ClientCache,
+        entity       : Entity,
+        condition    : &VisibilityCondition,
     ){
         // Clean up previous condition.
         let condition_id = condition.condition_id();
-        if !self.remove_entity_with_check(client_info, entity, Some(condition_id))
+        if !self.remove_entity_with_check(client_cache, entity, Some(condition_id))
         { tracing::debug!(?entity, ?condition_id, "ignoring attempt to add an entity condition that already exists"); return; }
 
         // Update entity map.
@@ -111,7 +157,7 @@ impl VisibilityCache
                 ||
                 {
                     (
-                        condition,
+                        condition.clone(),
                         self.entities_buffer.pop().unwrap_or_default(),
                         self.client_ids_buffer.pop().unwrap_or_default(),
                     )
@@ -129,7 +175,7 @@ impl VisibilityCache
         for client_id in clients.iter()
         {
             tracing::trace!(?client_id, ?entity, "visibility true");
-            let Some(client) = client_info.get_client_mut(*client_id) else { continue; };
+            let Some(client) = client_cache.get_client_mut(*client_id) else { continue; };
             client.visibility_mut().set_visibility(entity, true);
         }
     }
@@ -139,9 +185,9 @@ impl VisibilityCache
     /// Note: We update the `ClientCache` in case [`Visibility`] was removed from an entity that still has
     ///       the `Replication` component.
     //todo: updating `ClientCache` is redundant work
-    pub(crate) fn remove_entity(&mut self, client_info: &mut ClientCache, entity: Entity)
+    pub(crate) fn remove_entity(&mut self, client_cache: &mut ClientCache, entity: Entity)
     {
-        self.remove_entity_with_check(client_info, entity, None);
+        self.remove_entity_with_check(client_cache, entity, None);
     }
 
     /// Removes a client.
@@ -191,10 +237,10 @@ impl VisibilityCache
     /// Updates a client's visibility relative to a specific attribute.
     fn update_client_visibility(
         &mut self, 
-        client_info : &mut ClientCache,
-        client_id   : ClientId,
-        attribute   : VisibilityAttributeId,
-        update      : UpdateType,
+        client_cache : &mut ClientCache,
+        client_id    : ClientId,
+        attribute    : VisibilityAttributeId,
+        update       : UpdateType,
     ){
         // Access client attributes.
         let client_attributes = self.clients
@@ -223,9 +269,9 @@ impl VisibilityCache
         let Some(condition_ids) = self.attributes.get(&attribute) else { return; };
 
         // Get client visibility settings.
-        let mut visibility_settings = client_info.get_client_mut(client_id).map(|c| c.visibility_mut());
+        let mut visibility_settings = client_cache.get_client_mut(client_id).map(|c| c.visibility_mut());
 
-        // Update the entities and clients attached to each condition.
+        // Update the entity and client sets attached to each condition.
         for condition_id in condition_ids.iter()
         {
             let Some((condition, entities, clients)) = self.conditions.get_mut(condition_id)
@@ -258,7 +304,7 @@ impl VisibilityCache
     /// Returns `false` if the check failed.
     fn remove_entity_with_check(
         &mut self,
-        client_info     : &mut ClientCache,
+        client_cache     : &mut ClientCache,
         entity          : Entity,
         check_condition : Option<VisibilityConditionId>,
     ) -> bool
@@ -289,7 +335,7 @@ impl VisibilityCache
         for client_id in clients.iter()
         {
             tracing::trace!(?client_id, ?entity, "visibility false");
-            let Some(client) = client_info.get_client_mut(*client_id) else { continue; };
+            let Some(client) = client_cache.get_client_mut(*client_id) else { continue; };
             client.visibility_mut().set_visibility(entity, false);
         }
 

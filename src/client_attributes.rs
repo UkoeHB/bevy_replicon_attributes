@@ -6,8 +6,6 @@ use bevy::prelude::*;
 use bevy::ecs::system::SystemParam;
 use bevy_replicon::renet::ClientId;
 use bevy_replicon::prelude::ClientCache;
-use siphasher::sip128::{Hasher128, SipHasher13};
-use smallvec::SmallVec;
 
 //standard shortcuts
 use std::collections::HashSet;
@@ -31,8 +29,8 @@ fn kill_player(In(client_id): In<ClientId>, mut attributes: ClientAttributes)
 #[derive(SystemParam)]
 pub struct ClientAttributes<'w>
 {
-    client_info: ResMut<'w, ClientCache>,
     cache: ResMut<'w, VisibilityCache>,
+    client_info: ResMut<'w, ClientCache>,
 }
 
 impl<'w> ClientAttributes<'w>

@@ -2,15 +2,10 @@
 use crate::*;
 
 //third-party shortcuts
-use bevy::prelude::{Component, Deref};
-use siphasher::sip128::{Hasher128, SipHasher13};
-use smallvec::SmallVec;
 
 //standard shortcuts
 use std::any::TypeId;
 use std::hash::Hash;
-use std::marker::PhantomData;
-use std::sync::Arc;
 
 //-------------------------------------------------------------------------------------------------------------------
 
@@ -74,10 +69,8 @@ pub trait VisibilityAttribute: Sized + 'static
 {
     /// Returns the inner id of this attribute.
     ///
-    /// If your attribute contains non-type information (e.g. a client id), then you should manually implement this
-    /// trait.
+    /// If your attribute contains non-type information (e.g. a client id), then you should manually implement this.
     ///
-    /// See [`attribute_id`] for how to get a [`VisibilityAttributeId`].
     /// Note that ids are domain-separated by attribute type, so you can safely use the full `u64` range to define your
     /// inner id.
     fn inner_attribute_id(&self) -> u64;
