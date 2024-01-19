@@ -85,7 +85,9 @@ impl VisibilityCache
         { tracing::debug!(?entity, ?condition_id, "ignoring attempt to add an entity condition that already exists"); return; }
 
         // Update entity map.
-        self.entities.insert(entity, condition_id);
+        if self.entities.insert(entity, condition_id).is_some()
+        { tracing::error!(?entity, ?condition_id, "entity unexpectedly had condition on insert"); return; }
+        tracing::trace!(?entity, ?condition_id, "added condition to entity");
 
         // Access conditions map.
         let entry = self.conditions.entry(condition_id);
@@ -99,7 +101,7 @@ impl VisibilityCache
                     .entry(attribute_id)
                     .or_insert_with(|| self.condition_ids_buffer.pop().unwrap_or_default())
                     .insert(condition_id)
-                { tracing::error!(?attribute_id, ?condition_id, "found condition in attributes map unexpectedly"); }
+                { tracing::error!(?attribute_id, ?condition_id, "found condition in attributes map without conditions entry"); }
             }
         }
 
@@ -124,11 +126,11 @@ impl VisibilityCache
         // - Note that it's possible we are setting client visibilities back to `true` that were set to `false`
         //   when cleaning up this entity's old condition. We assume that performance is about equivalent between
         //   this brute-force approach and trying to only modify clients that don't have visibility of both conditions.
-        for client in clients.iter()
+        for client_id in clients.iter()
         {
-            client_info.client_mut(*client)
-                .visibility_mut()
-                .set_visibility(entity, true);
+            tracing::trace!(?client_id, ?entity, "visibility true");
+            let Some(client) = client_info.get_client_mut(*client_id) else { continue; };
+            client.visibility_mut().set_visibility(entity, true);
         }
     }
 
@@ -151,7 +153,9 @@ impl VisibilityCache
         // Find conditions monitored by this client.
         for attribute in attributes.iter()
         {
-            let Some(conditions) = self.attributes.get(attribute) else { continue; };
+            // We do not log an error on failure because the client may have an attribute with no corresponding conditions.
+            let Some(conditions) = self.attributes.get(attribute)else { continue; };
+
             for condition in conditions.iter()
             {
                 let Some((_, _, clients)) = self.conditions.get_mut(condition)
@@ -201,16 +205,25 @@ impl VisibilityCache
         // - Leave if the update did nothing.
         match update
         {
-            UpdateType::Insert => { if !client_attributes.insert(attribute) { return; } }
-            UpdateType::Remove => { if !client_attributes.remove(&attribute) { return; } }
+            UpdateType::Insert =>
+            {
+                if !client_attributes.insert(attribute)
+                { tracing::debug!(?client_id, ?attribute, "ignoring inserted client attribute that already exists"); return; }
+                tracing::trace!(?client_id, ?attribute, "inserted attribute to client");
+            }
+            UpdateType::Remove =>
+            {
+                if !client_attributes.remove(&attribute)
+                { tracing::debug!(?client_id, ?attribute, "ignoring remove client attribute that doesn't exist"); return; }
+                tracing::trace!(?client_id, ?attribute, "removed attribute from client");
+            }
         }
-        //let client_attributes = &*client_attributes;  //launder the reference so we can use it again
 
         // Access conditions associated with this attribute.
         let Some(condition_ids) = self.attributes.get(&attribute) else { return; };
 
         // Get client visibility settings.
-        let visibility_settings = client_info.client_mut(client_id).visibility_mut();
+        let mut visibility_settings = client_info.get_client_mut(client_id).map(|c| c.visibility_mut());
 
         // Update the entities and clients attached to each condition.
         for condition_id in condition_ids.iter()
@@ -229,6 +242,10 @@ impl VisibilityCache
             }
 
             // Set visibility for entities attached to this condition.
+            // - Ignore disconnected clients.
+            tracing::trace!(?client_id, ?entities, "visibility {visibility}");
+            let Some(ref mut visibility_settings) = visibility_settings else { continue; };
+
             for entity in entities.iter()
             {
                 visibility_settings.set_visibility(*entity, visibility);
@@ -258,20 +275,22 @@ impl VisibilityCache
                 return false;
             }
         }
+        tracing::trace!(?entity, ?condition_id, "removed condition from entity");
 
         // Access conditions map.
         let Some((_, entities, clients)) = self.conditions.get_mut(&condition_id)
         else { tracing::error!("missing condition on remove entity"); return true; };
 
         // Remove entity from tracked set for this condition.
-        if !entities.remove(&entity) { tracing::error!("missing entity on remove entity"); }
+        if !entities.remove(&entity)
+        { tracing::error!("missing entity on remove entity"); }
 
         // Update visibility of this entity for clients that can see this condition.
-        for client in clients.iter()
+        for client_id in clients.iter()
         {
-            client_info.client_mut(*client)
-                .visibility_mut()
-                .set_visibility(entity, false);
+            tracing::trace!(?client_id, ?entity, "visibility false");
+            let Some(client) = client_info.get_client_mut(*client_id) else { continue; };
+            client.visibility_mut().set_visibility(entity, false);
         }
 
         // Cleanup
