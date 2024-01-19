@@ -37,5 +37,8 @@ tracing        = { version = "0.1" }
 
 bevy_replicon_attributes_derive = { path = "bevy_replicon_attributes_derive", version = "0.1.0" }
 
+[patch.crates-io]
+bevy_replicon  = { git = "https://github.com/projectharmonia/bevy_replicon", rev = "9b50915" }
+
 [dev-dependencies]
 tracing-subscriber = { version = "0.3" }

@@ -3,15 +3,14 @@ use crate::*;
 
 //third-party shortcuts
 use bevy::prelude::*;
-use bevy_replicon::prelude::{ClientId, ClientsInfo};
+use bevy::ecs::system::SystemParam;
+use bevy_replicon::renet::ClientId;
+use bevy_replicon::prelude::ClientCache;
 use siphasher::sip128::{Hasher128, SipHasher13};
 use smallvec::SmallVec;
 
 //standard shortcuts
-use std::any::TypeId;
-use std::hash::Hash;
-use std::marker::PhantomData;
-use std::sync::Arc;
+use std::collections::HashSet;
 
 //-------------------------------------------------------------------------------------------------------------------
 
@@ -32,11 +31,11 @@ fn kill_player(In(client_id): In<ClientId>, mut attributes: ClientAttributes)
 #[derive(SystemParam)]
 pub struct ClientAttributes<'w>
 {
-    client_info: ResMut<'w, ClientsInfo>,
+    client_info: ResMut<'w, ClientCache>,
     cache: ResMut<'w, VisibilityCache>,
 }
 
-impl ClientAttributes
+impl<'w> ClientAttributes<'w>
 {
     /// Adds an attribute to a client.
     pub fn add<T: VisibilityAttribute>(&mut self, client_id: ClientId, attribute: T)
