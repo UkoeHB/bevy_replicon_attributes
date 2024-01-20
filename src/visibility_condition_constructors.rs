@@ -373,6 +373,44 @@ where
 
 //-------------------------------------------------------------------------------------------------------------------
 
+/// Syntax sugar for `and(A, and(B, C))` etc.
+#[macro_export] macro_rules! all
+{
+    () => { empty() };
+    ($condition:expr) => { $condition };
+    ($condition:expr, $($remaining:tt)*) =>
+    {
+        and($condition, all!($($remaining)*))
+    };
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+/// Syntax sugar for `or(A, or(B, C))` etc.
+#[macro_export] macro_rules! any
+{
+    () => { empty() };
+    ($condition:expr) => { $condition };
+    ($condition:expr, $($remaining:tt)*) =>
+    {
+        or($condition, any!($($remaining)*))
+    };
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+/// Syntax sugar for `not(or(A, or(B, C)))` etc.
+#[macro_export] macro_rules! none
+{
+    () => { empty() };
+    ($($condition:tt)*) =>
+    {
+        not(any!($($condition)*))
+    };
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 /// Translates a token sequence into a type that implements [`IntoVisibilityCondition`].
 #[macro_export] macro_rules! into_condition
 {

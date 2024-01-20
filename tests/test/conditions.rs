@@ -210,6 +210,48 @@ fn combo_check()
 //-------------------------------------------------------------------------------------------------------------------
 
 #[test]
+fn all_check()
+{
+    assert_eq!(vis!(all!()), vis!(empty()));
+    assert_eq!(vis!(all!(A)), vis!(A));
+    assert_eq!(vis!(all!(A, B, C)), vis!(and(A, and(B, C))));
+    assert_eq!(vis!(all!(A, and(B, C))), vis!(and(A, and(B, C))));
+    assert_eq!(vis!(all!(not(A), B)), vis!(and(not(A), B)));
+    assert_eq!(vis!(all!(A, not(B))), vis!(and(A, not(B))));
+    assert_eq!(vis!(all!(A, all!(B, C))), vis!(and(A, and(B, C))));
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+#[test]
+fn any_check()
+{
+    assert_eq!(vis!(any!()), vis!(empty()));
+    assert_eq!(vis!(any!(A)), vis!(A));
+    assert_eq!(vis!(any!(A, B, C)), vis!(or(A, or(B, C))));
+    assert_eq!(vis!(any!(A, or(B, C))), vis!(or(A, or(B, C))));
+    assert_eq!(vis!(any!(not(A), B)), vis!(or(not(A), B)));
+    assert_eq!(vis!(any!(A, not(B))), vis!(or(A, not(B))));
+    assert_eq!(vis!(any!(A, any!(B, C))), vis!(or(A, or(B, C))));
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+#[test]
+fn none_check()
+{
+    assert_eq!(vis!(none!()), vis!(empty()));
+    assert_eq!(vis!(none!(A)), vis!(not(A)));
+    assert_eq!(vis!(none!(A, B, C)), vis!(not(or(A, or(B, C)))));
+    assert_eq!(vis!(none!(A, or(B, C))), vis!(not(or(A, or(B, C)))));
+    assert_eq!(vis!(none!(not(A), B)), vis!(not(or(not(A), B))));
+    assert_eq!(vis!(none!(A, not(B))), vis!(not(or(A, not(B)))));
+    assert_eq!(vis!(none!(A, none!(B, C))), vis!(not(or(A, not(or(B, C))))));
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+#[test]
 fn condition_composition()
 {
     let a = vis!(Test);

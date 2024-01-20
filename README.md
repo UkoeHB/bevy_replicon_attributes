@@ -145,7 +145,7 @@ Entity visibility conditions are evaluated against client attribute lists to det
 
 An empty visibility condition always evaluates to `true`. This way if an entity has no `Visibility` component it will be visible to no clients (assuming you use a whitelist policy), if it has an empty `Visibility` it will be visible to all clients, and if it has a non-empty `Visibility` then it will be visible to clients that match the condition. Semantically, an empty condition matches 'anything', and a non-empty condition is equivalent to `and(ANYTHING, condition)`.
 
-For convenience we have a [`vis!()`](bevy_replicon_attributes::vis) macro which produces new [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components (simple wrappers around [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition)).
+For convenience we have a [`vis!()`](bevy_replicon_attributes::vis) macro which produces new [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components (simple wrappers around [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition)). The [`any!()`](bevy_replicon_attributes::vis)/[`all!()`](bevy_replicon_attributes::vis)/[`none!()`](bevy_replicon_attributes::vis) macros can be used in side the `vis!()` macro in addition to `not()`/`and()`/`or()`.
 
 Here is a low-level example how it works. In practice you only need to add [`VisibilityAttributes`](bevy_replicon_attributes::VisibilityAttribute) to clients and [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components to entities. This crate will take care of translating that information into entity visibility within `bevy_replicon`.
 
@@ -179,12 +179,17 @@ Here are examples of more complex visibility conditions:
 vis!();
 vis!(A);
 vis!(not(B));
-vis!(or(A, B));
 vis!(and(A, B));
+vis!(or(A, B));
 vis!(and(A, not(B)));
 
 // Composition
 vis!(and(A, vis!(B)));
+
+// Helpers
+vis!(any!(A, B, C));   //equivalent: vis!(or(A, or(B, C)))
+vis!(all!(A, B, C));   //equivalent: vis!(and(A, and(B, C)))
+vis!(none!(A, B, C));  //equivalent: vis!(none(or(A, or(B, C)))))
 
 // Modification
 vis!()
