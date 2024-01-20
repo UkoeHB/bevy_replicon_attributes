@@ -54,6 +54,7 @@ where
 pub struct VisibilityConditionBuilder
 {
     nodes: SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>,
+    num_empty: usize,
 }
 
 impl VisibilityConditionBuilder
@@ -61,7 +62,7 @@ impl VisibilityConditionBuilder
     /// Creates a new condition builder.
     pub(crate) fn new() -> Self
     {
-        Self{ nodes: SmallVec::default() }
+        Self{ nodes: SmallVec::default(), num_empty: 0 }
     }
 
     /// Pushes an empty node which will be set later.
@@ -72,6 +73,7 @@ impl VisibilityConditionBuilder
         let position = self.nodes.len();
         self.nodes.reserve(extra + 1);
         self.nodes.push(VisibilityConditionNode::Empty);
+        self.num_empty += 1;
         position
     }
 
@@ -86,9 +88,8 @@ impl VisibilityConditionBuilder
     /// Assumes the next node to be inserted will be the start of the OR expression's child branch.
     pub(crate) fn push_not_node(&mut self)
     {
-        let next_node = self.nodes.len() + 1;
         self.nodes.reserve(2);
-        self.nodes.push(VisibilityConditionNode::Not(next_node));
+        self.nodes.push(VisibilityConditionNode::Not);
     }
 
     /// Sets an AND node at its branch root position.
@@ -98,9 +99,9 @@ impl VisibilityConditionBuilder
     /// Panics if the AND node position was not inserted with [`Self::push_empty`].
     pub(crate) fn set_and_node(&mut self, node: usize)
     {
-        let left = node + 1;
         let right = self.nodes.len();
-        self.nodes[node] = VisibilityConditionNode::And(left, right);
+        self.nodes[node] = VisibilityConditionNode::And(right);
+        self.num_empty -= 1;
     }
 
     /// Sets an OR node at its branch root position.
@@ -110,13 +111,16 @@ impl VisibilityConditionBuilder
     /// Panics if the OR node position was not inserted with [`Self::push_empty`].
     pub(crate) fn set_or_node(&mut self, node: usize)
     {
-        let left = node + 1;
         let right = self.nodes.len();
-        self.nodes[node] = VisibilityConditionNode::Or(left, right);
+        self.nodes[node] = VisibilityConditionNode::Or(right);
+        self.num_empty -= 1;
     }
 
     /// Pushes a condition branch into the tree.
-    pub(crate) fn push_branch(&mut self, branch: &[VisibilityConditionNode])
+    ///
+    /// The inserted branch may come from a section of another condition, in which case you should define the `root`
+    /// of the branch being inserted to equal the position of the first node in that branch.
+    pub(crate) fn push_branch(&mut self, root: usize, branch: &[VisibilityConditionNode])
     {
         self.nodes.reserve(branch.len());
         let len = self.nodes.len();
@@ -125,20 +129,124 @@ impl VisibilityConditionBuilder
         {
             match &mut node
             {
-                VisibilityConditionNode::Empty     => (),
-                VisibilityConditionNode::Attr(_)   => (),
-                VisibilityConditionNode::Not(a)    => { *a += len; },
-                VisibilityConditionNode::And(a, b) => { *a += len; *b += len; },
-                VisibilityConditionNode::Or(a, b)  => { *a += len; *b += len; },
+                VisibilityConditionNode::Empty   => { self.num_empty += 1; },
+                VisibilityConditionNode::Attr(_) => (),
+                VisibilityConditionNode::Not     => (),
+                VisibilityConditionNode::And(b)  |
+                VisibilityConditionNode::Or(b)   => { *b -= root; *b += len; }
             }
             self.nodes.push(node);
         }
     }
 
-    /// Takes the internal nodes.
-    pub(crate) fn take(self) -> SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>
+    /// Repairs existing node references with the assumption that we are rebuilding a condition, and
+    /// a segment of the old condition will be replaced by a new segment (which will be inserted to the end of the builder).
+    ///
+    /// The `replacement_delta` equals the new segment minus old segment length.
+    pub(crate) fn prep_branch_replacement(&mut self, replacement_delta: i32)
     {
-        self.nodes
+        let len = self.nodes.len();
+
+        for node in self.nodes.iter_mut()
+        {
+            match node
+            {
+                VisibilityConditionNode::Empty   => (),
+                VisibilityConditionNode::Attr(_) => (),
+                VisibilityConditionNode::Not     => (),
+                VisibilityConditionNode::And(b)  |
+                VisibilityConditionNode::Or(b)   =>
+                {
+                    if *b >= len { *b = (*b as i32 + replacement_delta) as usize; }
+                }
+            }
+        }
+    }
+
+    /// Consolidates the condition by removing empty nodes and simplifying expressions.
+    ///
+    /// Returns the consolidated internal node tree.
+    ///
+    /// An empty node is inserted if the condition is empty. We want future compositions using this condition
+    /// to correctly consolidate, so we need it to have an empty node to avoid broken expressions.
+    pub(crate) fn consolidate_and_take(self) -> SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>
+    {
+        if self.nodes.len() == 0 { return SmallVec::from_slice(&[VisibilityConditionNode::Empty]); }
+        if self.nodes.len() == 1 || self.num_empty == 0 { return self.nodes; }
+
+        // set all invalid branches to empty
+        fn node_recursion(
+            nodes        : SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>,
+            current_node : usize,
+        ) -> (bool, SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>, usize)
+        {
+            match nodes[current_node]
+            {
+                VisibilityConditionNode::Empty   => (true, nodes, 1),
+                VisibilityConditionNode::Attr(_) => (false, nodes, 0),
+                VisibilityConditionNode::Not     =>
+                {
+                    // recurse child branch
+                    let (is_empty, mut nodes, num_empty) = node_recursion(nodes, current_node + 1);
+
+                    // if child is non-empty, then do nothing
+                    if !is_empty { return (false, nodes, num_empty); }
+
+                    // invalidate current node
+                    nodes[current_node] = VisibilityConditionNode::Empty;
+                    (true, nodes, num_empty + 1)
+                }
+                VisibilityConditionNode::And(b) |
+                VisibilityConditionNode::Or(b)  =>
+                {
+                    // recurse branches
+                    let (left_is_empty, nodes, num_empty_left) = node_recursion(nodes, current_node + 1);
+                    let (right_is_empty, mut nodes, num_empty_right) = node_recursion(nodes, b);
+
+                    // if both branches are non-empty, then adjust the left branch reference
+                    if !left_is_empty && !right_is_empty
+                    {
+                        match &mut nodes[current_node]
+                        {
+                            VisibilityConditionNode::And(b) |
+                            VisibilityConditionNode::Or(b)  => { *b -= num_empty_left; }
+                            _ => { unreachable!(); }
+                        }
+                        return (false, nodes, num_empty_left + num_empty_right);
+                    }
+
+                    // invalidate current node
+                    // - This node is only completely empty if both branches are empty. If only one branch is empty, then
+                    //   the non-empty branch 'takes over' the position of this node within the parent.
+                    nodes[current_node] = VisibilityConditionNode::Empty;
+                    (left_is_empty && right_is_empty, nodes, num_empty_left + num_empty_right + 1)
+                }
+            }
+        }
+
+        let (empty_tree, mut nodes, num_empty) = node_recursion(self.nodes, 0);
+        if empty_tree { return SmallVec::from_slice(&[VisibilityConditionNode::Empty]); }
+
+        // repair branch references based on empty nodes, and shift elements left
+        let mut empty_count = 0;
+
+        for idx in 0..nodes.len()
+        {
+            match &mut nodes[idx]
+            {
+                VisibilityConditionNode::Empty   => { empty_count += 1; continue; },
+                VisibilityConditionNode::Attr(_) => (),
+                VisibilityConditionNode::Not     => (),
+                // note: we incorporated left-branch empty slots within the recursion
+                VisibilityConditionNode::And(b)  |
+                VisibilityConditionNode::Or(b)   => { *b -= empty_count; }
+            }
+            nodes[idx - empty_count] = nodes[idx];
+        }
+        debug_assert_eq!(num_empty, empty_count);
+
+        nodes.truncate(nodes.len() - empty_count);
+        nodes
     }
 }
 

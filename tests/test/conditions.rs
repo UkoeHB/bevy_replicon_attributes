@@ -126,6 +126,8 @@ fn not_check()
     let mut iter = condition.iter_attributes();
     assert_eq!(iter.next(), Some(Test.attribute_id()));
     assert_eq!(iter.next(), None);
+
+    //todo: test not with empty nodes
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -143,6 +145,8 @@ fn and_check()
     assert_eq!(iter.next(), Some(Test.attribute_id()));
     assert_eq!(iter.next(), Some(Manual(0).attribute_id()));
     assert_eq!(iter.next(), None);
+
+    //todo: test and with empty nodes
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -162,6 +166,8 @@ fn or_check()
     assert_eq!(iter.next(), Some(Test.attribute_id()));
     assert_eq!(iter.next(), Some(Manual(0).attribute_id()));
     assert_eq!(iter.next(), None);
+
+    //todo: test or with empty nodes
 }
 
 //-------------------------------------------------------------------------------------------------------------------
