@@ -28,10 +28,10 @@ struct IsAwake;
 struct HatesBats;
 
 fn spawn_bats(
-    mut commands      : Commands,
-    mut events        : EventReader<SpawnBat>,
-    mut server_events : ServerEventSender<BatAlert>,
-    attributes        : ClientAttributes,
+    mut commands : Commands,
+    mut events   : EventReader<SpawnBat>,
+    mut sender   : ServerEventSender<BatAlert>,
+    attributes   : ClientAttributes,
 ){
     for _ in events.read()
     {
@@ -39,7 +39,7 @@ fn spawn_bats(
         commands.spawn((Bat, Replication, vis!(HasNightVision)));
 
         // Server event
-        server_events.send(&attributes, BatAlert, vis!(all!(HasNightVision, IsAwake, HatesBats)));
+        sender.send(&attributes, BatAlert, vis!(all!(HasNightVision, IsAwake, HatesBats)));
     }
 }
 
@@ -216,7 +216,6 @@ vis!()
 
 ```
 
-
 #### Replicating entities
 
 We include a [`replicate_to!()`](bevy_replicon_attributes::replicate_to) macro that simplifies spawning replicated entities.
@@ -234,5 +233,31 @@ fn easy_spawn(mut commands: Commands)
             //equivalent: (Replication, vis!(and(InLocation(x, y), InTeam(team))))
         )
     );
+}
+```
+
+#### Server events
+
+Visibility of server events can be controlled with [`ServerEventSender`](bevy_replicon_attributes::ServerEventSender).
+
+Server events should be registered via `bevy_replicon`. Note that events must implement `Clone`.
+
+```rust
+use bevy::prelude::*;
+use bevy_replicon::prelude::*;
+use bevy_replicon_attributes::prelude::*;
+
+#[derive(Event, Copy, Clone)]
+struct E;
+
+fn setup(app: &mut App)
+{
+    // Replicon server event registration
+    app.add_server_event::<E>();
+}
+
+fn send_event(attributes: ClientAttributes, mut sender: ServerEventSender<E>)
+{
+    sender.send(&attributes, E, vis!(any!(Client(1), Client(2), Client(3))));
 }
 ```
