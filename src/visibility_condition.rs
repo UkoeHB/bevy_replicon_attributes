@@ -268,11 +268,11 @@ impl VisibilityCondition
     /**
     ```rust
     let mut a = vis!(and(A(0), not(A(1))));
-    a.replace<A>(B);
+    a.replace_type::<A>(B);
     assert!(a == vis!(and(B, not(B))));
 
     let mut loc = vis!(Location(20, 40));
-    loc.replace<Location>(Location(22, 45));
+    loc.replace_type::<Location>(Location(22, 45));
     assert!(loc == vis!(Location(22, 45)));
     ```
     */
@@ -327,11 +327,11 @@ impl VisibilityCondition
     /**
     ```rust
     let mut a = vis!(and(A(0), not(A(1))));
-    a.remove<A>();
+    a.remove_type::<A>();
     assert!(a == vis!());
 
     let mut b = vis!(or(A(1), B(2)));
-    b.remove<A>();
+    b.remove_type::<A>();
     assert!(b == vis!(B(2)));
     ```
     */
@@ -424,6 +424,7 @@ impl VisibilityCondition
 
         if count > 0
         {
+            builder.push_branch(dead_zone_start, &slice[dead_zone_start..test_zone_start]);
             *self = Self::from(builder);
         }
 

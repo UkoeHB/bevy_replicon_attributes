@@ -43,6 +43,19 @@ impl VisibilityAttribute for Manual
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
+struct Manual2(usize);
+
+impl VisibilityAttribute for Manual2
+{
+    fn inner_attribute_id(&self) -> u64
+    {
+        self.0 as u64
+    }
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
 #[test]
 fn test_macro()
 {
@@ -66,6 +79,8 @@ fn empty_check()
 
     let mut iter = condition.iter_attributes();
     assert_eq!(iter.next(), None);
+
+    assert_eq!(vis!(empty()), vis!());
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -127,7 +142,7 @@ fn not_check()
     assert_eq!(iter.next(), Some(Test.attribute_id()));
     assert_eq!(iter.next(), None);
 
-    //todo: test not with empty nodes
+    assert_eq!(vis!(not(empty())), vis!());
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -146,7 +161,9 @@ fn and_check()
     assert_eq!(iter.next(), Some(Manual(0).attribute_id()));
     assert_eq!(iter.next(), None);
 
-    //todo: test and with empty nodes
+    assert_eq!(vis!(and(empty(), A)), vis!(A));
+    assert_eq!(vis!(and(A, empty())), vis!(A));
+    assert_eq!(vis!(and(empty(), empty())), vis!());
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -167,7 +184,9 @@ fn or_check()
     assert_eq!(iter.next(), Some(Manual(0).attribute_id()));
     assert_eq!(iter.next(), None);
 
-    //todo: test or with empty nodes
+    assert_eq!(vis!(or(empty(), A)), vis!(A));
+    assert_eq!(vis!(or(A, empty())), vis!(A));
+    assert_eq!(vis!(or(empty(), empty())), vis!());
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -295,7 +314,21 @@ fn condition_ids()
 //-------------------------------------------------------------------------------------------------------------------
 
 #[test]
-fn visibility_extension()
+fn consolidation()
+{
+    assert_eq!(vis!(and(A, not(empty()))), vis!(A));
+    assert_eq!(vis!(and(not(empty()), A)), vis!(A));
+    assert_eq!(vis!(or(A, not(empty()))), vis!(A));
+    assert_eq!(vis!(or(not(empty()), A)), vis!(A));
+
+    assert_eq!(vis!(and(and(A, empty()), empty())), vis!(A));
+    assert_eq!(vis!(and(empty(), and(empty(), A))), vis!(A));
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+#[test]
+fn extension()
 {
     let mut a = vis!(or(A, B));
     a.and(and(not(C), D));
@@ -304,6 +337,61 @@ fn visibility_extension()
     let mut a = vis!(not(A));
     a.or(or(B, C));
     assert_eq!(a, vis!(or(not(A), or(B, C))));
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+#[test]
+fn replacement()
+{
+    let mut a = vis!(and(A, B));
+    a.replace(B, not(B));
+    assert_eq!(a, vis!(and(A, not(B))));
+
+    a.replace(and(A, not(B)), C);
+    assert_eq!(a, vis!(C));
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+#[test]
+fn replacement_by_type()
+{
+    let mut a = vis!(and(Manual(0), not(Manual(1))));
+    a.replace_type::<Manual>(B);
+    assert_eq!(a, vis!(and(B, not(B))));
+
+    let mut m = vis!(Manual(20));
+    m.replace_type::<Manual>(Manual(22));
+    assert_eq!(m, vis!(Manual(22)));
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+#[test]
+fn removal()
+{
+    let mut a = vis!(and(A, B));
+    a.remove(B);
+    assert_eq!(a, vis!(A));
+
+    let mut b = vis!(or(A, not(B)));
+    b.remove(or(A, not(B)));
+    assert_eq!(b, vis!());
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+#[test]
+fn removal_by_type()
+{
+    let mut a = vis!(and(Manual(0), not(Manual(1))));
+    a.remove_type::<Manual>();
+    assert_eq!(a, vis!());
+
+    let mut b = vis!(or(Manual(1), Manual2(2)));
+    b.remove_type::<Manual>();
+    assert_eq!(b, vis!(Manual2(2)));
 }
 
 //-------------------------------------------------------------------------------------------------------------------

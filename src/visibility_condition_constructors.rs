@@ -51,6 +51,7 @@ where
 //-------------------------------------------------------------------------------------------------------------------
 
 /// Visibility condition builder.
+#[derive(Debug)]
 pub struct VisibilityConditionBuilder
 {
     nodes: SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>,
@@ -122,6 +123,8 @@ impl VisibilityConditionBuilder
     /// of the branch being inserted to equal the position of the first node in that branch.
     pub(crate) fn push_branch(&mut self, root: usize, branch: &[VisibilityConditionNode])
     {
+        if branch.len() == 0 { return; }
+
         self.nodes.reserve(branch.len());
         let len = self.nodes.len();
 
@@ -157,7 +160,8 @@ impl VisibilityConditionBuilder
                 VisibilityConditionNode::And(b)  |
                 VisibilityConditionNode::Or(b)   =>
                 {
-                    if *b >= len { *b = (*b as i32 + replacement_delta) as usize; }
+                    // only correct right branch ptr that points past the starting position of the replacement
+                    if *b > len { *b = (*b as i32 + replacement_delta) as usize; }
                 }
             }
         }
