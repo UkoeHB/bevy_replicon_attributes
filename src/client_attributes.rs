@@ -58,6 +58,12 @@ impl<'w> ClientAttributes<'w>
     {
         self.cache.iter_client_attributes(client_id)
     }
+
+    /// Evaluates a visibility condition againt all clients and returns an iterator of clients that evaluate true.
+    pub fn evaluate<'s, 'a: 's>(&'s self, condition: &'a VisibilityCondition) -> impl Iterator<Item = ClientId> + '_
+    {
+        self.cache.iter_client_visibility(condition)
+    }
 }
 
 //-------------------------------------------------------------------------------------------------------------------

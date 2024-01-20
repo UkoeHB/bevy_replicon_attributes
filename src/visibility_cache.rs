@@ -234,6 +234,23 @@ impl VisibilityCache
             .flatten()
     }
 
+    /// Evaluates a visibility condition againt all clients and returns an iterator of clients that evaluate true.
+    pub(crate) fn iter_client_visibility<'s, 'a: 's>(&'s self, condition: &'a VisibilityCondition) -> impl Iterator<Item = ClientId> + '_
+    {
+        self.clients
+            .iter()
+            .filter_map(
+                |(id, attrs)|
+                {
+                    match condition.evaluate(|a| attrs.contains(&a))
+                    {
+                        true  => Some(*id),
+                        false => None,
+                    }
+                }
+            )
+    }
+
     /// Updates a client's visibility relative to a specific attribute.
     fn update_client_visibility(
         &mut self, 
