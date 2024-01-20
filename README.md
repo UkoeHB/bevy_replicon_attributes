@@ -8,34 +8,48 @@ Extends [bevy_replicon](https://github.com/lifescapegame/bevy_replicon) with att
 ```rust
 use bevy::prelude::*;
 use bevy_replicon::prelude::{ClientId, Replication};
-use bevy_replicon_attributes::prelude::{ClientAttributes, VisibilityAttribute};
+use bevy_replicon_attributes::prelude::*;
 
 #[derive(Component)]
 struct Bat;
 
 #[derive(Event)]
 struct SpawnBat;
-
+#[derive(Event, Copy, Clone)]
+struct BatAlert;
 #[derive(Event)]
 struct GainedNightVision(ClientId);
 
 #[derive(VisibilityAttribute, Default, PartialEq)]
 struct HasNightVision;
+#[derive(VisibilityAttribute, Default, PartialEq)]
+struct IsAwake;
+#[derive(VisibilityAttribute, Default, PartialEq)]
+struct HatesBats;
 
-fn spawn_bats(mut events: EventReader<SpawnBat>, mut commands: Commands)
-{
+fn spawn_bats(
+    mut commands      : Commands,
+    mut events        : EventReader<SpawnBat>,
+    mut server_events : ServerEventSender<BatAlert>,
+    attributes        : ClientAttributes,
+){
     for _ in events.read()
     {
+        // Entity
         commands.spawn((Bat, Replication, vis!(HasNightVision)));
+
+        // Server event
+        server_events.send(&attributes, BatAlert, vis!(all!(HasNightVision, IsAwake, HatesBats)));
     }
 }
 
 fn gain_night_vision(
     mut events     : EventReader<GainedNightVision>,
-    mut attributes : ClientAttributes
+    mut attributes : ClientAttributes,
 ){
     for client_id in events.read()
     {
+        // Client attribute
         attributes.add(client_id, HasNightVision);
     }
 }
