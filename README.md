@@ -84,7 +84,7 @@ Add [`VisibilityAttributesPlugin`](bevy_replicon_attributes::VisibilityAttribute
 ```rust
 use bevy_replicon_attributes::prelude::*;
 
-app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Cleanup });
+app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
 ```
 
 If you choose [`ReconnectPolicy::Repair`](bevy_replicon_attributes::ReconnectPolicy::Repair), we recommend also using [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) for preserving replicated state on clients.
@@ -240,7 +240,7 @@ fn easy_spawn(mut commands: Commands)
 
 Visibility of server events can be controlled with [`ServerEventSender`](bevy_replicon_attributes::ServerEventSender).
 
-Server events should be registered via `bevy_replicon`. Note that events must implement `Clone`.
+Server events must be registered with `bevy_replicon`. Clients will receive events with `EventReader<T>`.
 
 ```rust
 use bevy::prelude::*;
@@ -256,7 +256,7 @@ fn setup(app: &mut App)
     app.add_server_event::<E>();
 }
 
-fn send_event(attributes: ClientAttributes, mut sender: ServerEventSender<E>)
+fn send_event(mut sender: ServerEventSender<E>, attributes: ClientAttributes)
 {
     sender.send(&attributes, E, vis!(any!(Client(1), Client(2), Client(3))));
 }

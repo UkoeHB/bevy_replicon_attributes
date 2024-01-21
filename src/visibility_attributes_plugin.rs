@@ -12,15 +12,16 @@ use bevy_replicon::prelude::{ClientCache, ServerSet};
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
-fn cleanup_disconnected_clients(
+fn reset_clients(
     mut visibility_cache : ResMut<VisibilityCache>,
+    mut client_cache     : ResMut<ClientCache>,
     mut events           : EventReader<ServerEvent>,
 ){
     for event in events.read()
     {
         match event
         {
-            ServerEvent::ClientConnected{ client_id }       => visibility_cache.remove_client(*client_id),
+            ServerEvent::ClientConnected{ client_id }        => visibility_cache.reset_client(&mut client_cache, *client_id),
             ServerEvent::ClientDisconnected{ client_id, .. } => visibility_cache.remove_client(*client_id),
         }
     }
@@ -29,7 +30,7 @@ fn cleanup_disconnected_clients(
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
-fn repair_connected_clients(
+fn repair_clients(
     mut visibility_cache : ResMut<VisibilityCache>,
     mut client_cache     : ResMut<ClientCache>,
     mut events           : EventReader<ServerEvent>,
@@ -75,18 +76,13 @@ fn handle_visibility_changes(
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
-struct AttributesCleanupPlugin;
+struct AttributesResetPlugin;
 
-impl Plugin for AttributesCleanupPlugin
+impl Plugin for AttributesResetPlugin
 {
     fn build(&self, app: &mut App)
     {
-        app.add_systems(PreUpdate,
-                (
-                    cleanup_disconnected_clients,
-                )
-                    .in_set(VisibilityCleanupSet)
-            );
+        app.add_systems(PreUpdate, reset_clients.in_set(VisibilityReconnectSet));
     }
 }
 
@@ -99,12 +95,7 @@ impl Plugin for AttributesRepairPlugin
 {
     fn build(&self, app: &mut App)
     {
-        app.add_systems(PreUpdate,
-                (
-                    repair_connected_clients,
-                )
-                    .in_set(VisibilityRepairSet)
-            );
+        app.add_systems(PreUpdate, repair_clients.in_set(VisibilityReconnectSet));
     }
 }
 
@@ -117,30 +108,22 @@ impl Plugin for AttributesRepairPlugin
 #[derive(SystemSet, Debug, Eq, PartialEq, Clone, Hash)]
 pub struct VisibilityUpdateSet;
 
-/// System set that erases client attributes when a client disconnects and reconnects.
+/// System set that handles client reconnects.
 ///
 /// Runs in `PreUpdate` after `bevy_replicon::prelude::ServerSet::Receive`.
 ///
-/// Does nothing if [`ReconnectPolicy::Cleanup`] is not specified in [`VisibilityAttributesPlugin`].
+/// See [`ReconnectPolicy`] for the behavior of this set.
 #[derive(SystemSet, Debug, Eq, PartialEq, Clone, Hash)]
-pub struct VisibilityCleanupSet;
-
-/// System set that repairs `bevy_replicon` client visibility when a client reconnects.
-///
-/// Runs in `PreUpdate` after `bevy_replicon::prelude::ServerSet::Receive`.
-///
-/// Does nothing if [`ReconnectPolicy::Repair`] is not specified in [`VisibilityAttributesPlugin`].
-#[derive(SystemSet, Debug, Eq, PartialEq, Clone, Hash)]
-pub struct VisibilityRepairSet;
+pub struct VisibilityReconnectSet;
 
 /// Configures handling of reconnects,
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum ReconnectPolicy
 {
-    /// Clear client attributes after a disconnect and when they reconnect.
+    /// Reset a client's visibility after a disconnect and when they reconnect.
     ///
     /// Only attributes added while the client is connected will be used to determine visibility.
-    Cleanup,
+    Reset,
     /// Preserve client attributes after a disconnect, and repair client visibility within `bevy_replicon` when
     /// the client reconnects.
     Repair,
@@ -159,15 +142,8 @@ impl Plugin for VisibilityAttributesPlugin
 {
     fn build(&self, app: &mut App)
     {
-        app.init_resource::<VisibilityCache>()
-            .configure_sets(PreUpdate,
-                (
-                    // only one of these will do anything
-                    VisibilityCleanupSet,
-                    VisibilityRepairSet,
-                )
-                    .after(ServerSet::Receive)
-            )
+        app.insert_resource(VisibilityCache::new())
+            .configure_sets(PreUpdate, VisibilityReconnectSet.after(ServerSet::Receive))
             .configure_sets(PostUpdate, VisibilityUpdateSet.before(ServerSet::Send))
             .add_systems(PostUpdate,
                 (
@@ -181,8 +157,8 @@ impl Plugin for VisibilityAttributesPlugin
 
         match self.reconnect_policy
         {
-            ReconnectPolicy::Cleanup => { app.add_plugins(AttributesCleanupPlugin); }
-            ReconnectPolicy::Repair  => { app.add_plugins(AttributesRepairPlugin); }
+            ReconnectPolicy::Reset  => { app.add_plugins(AttributesResetPlugin); }
+            ReconnectPolicy::Repair => { app.add_plugins(AttributesRepairPlugin); }
         }
     }
 }

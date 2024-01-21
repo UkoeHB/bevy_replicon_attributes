@@ -23,8 +23,7 @@ fn evaluate(
     let a = current_node + 1;
     match condition[current_node]
     {
-        VisibilityConditionNode::Empty =>
-        { tracing::error!("encountered empty node when evaluating condition tree"); true }
+        VisibilityConditionNode::Empty => { true }
         VisibilityConditionNode::Attr(attr) => (inspector)(attr),
         VisibilityConditionNode::Not        => !evaluate(inspector, condition, a),
         VisibilityConditionNode::And(b)     => evaluate(inspector, condition, a) && evaluate(inspector, condition, b),
@@ -130,6 +129,12 @@ pub enum VisibilityCondition
 
 impl VisibilityCondition
 {
+    /// Makes a new condition with one empty node.
+    pub fn empty() -> Self
+    {
+        Self::Small(SmallVec::from_slice(&[VisibilityConditionNode::Empty]))
+    }
+
     /// Makes a new condition with the given condition constructor.
     ///
     /// The final condition will be consolidated (empty nodes removed and expressions simplified).
