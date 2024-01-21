@@ -176,4 +176,13 @@ fn basic_visibility()
 //client adds/removes attribute in same tick
 //client adds/removes/adds attribute in same tick
 //multiple clients see different entities
-//
+
+//entity visibility added after spawn
+//entity visibility added to multiple entities in the same tick
+//entity visibility added to multiple entities in different ticks
+//entity visibility removed
+//entity visibility changes to empty
+//entity visibility changes
+//entity visibility changes twice in the same tick
+//entity visibility added/removed in the same tick
+//entity visibility added/removed/added in the same tick

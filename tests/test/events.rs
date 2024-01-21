@@ -50,3 +50,8 @@ fn test()
 }
 
 //-------------------------------------------------------------------------------------------------------------------
+
+//event sent to empty is seen by all
+//event sent to condition is seen by matching clients
+//event sent with empty vis before client connects is not seen
+//multiple events sent in the same tick are all seen by clients
