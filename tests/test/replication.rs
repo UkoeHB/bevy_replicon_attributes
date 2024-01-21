@@ -167,3 +167,13 @@ fn basic_visibility()
 
 //client connects after entity spawned with empty visibility
 //client connects after entity spawned with non-empty visibility
+//[reset] client reconnects and loses visibility
+//[reset] client reconnects and gains visibility of empty vis entity but not new non-empty vis entity
+//[repair] client reconnects and maintains visibility
+//[repair] client reconnects and gains visibility of newly spawned entity and newly spawned empty vis entity
+
+//client removes attribute
+//client adds/removes attribute in same tick
+//client adds/removes/adds attribute in same tick
+//multiple clients see different entities
+//
