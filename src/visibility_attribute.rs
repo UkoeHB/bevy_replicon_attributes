@@ -77,7 +77,7 @@ pub trait VisibilityAttribute: Sized + 'static
 
     /// Returns the id of the attribute.
     ///
-    /// By default the id is a concatenation of the attribute's type id and its inner id.
+    /// The id is a concatenation of the attribute's type id and its inner id.
     fn attribute_id(&self) -> VisibilityAttributeId
     {
         VisibilityAttributeId::new::<Self>(self.inner_attribute_id())

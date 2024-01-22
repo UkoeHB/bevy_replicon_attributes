@@ -75,8 +75,8 @@ fn empty_check()
 {
     let condition = vis!();
     assert!(condition.is_empty());
-    assert!(condition.evaluate(|_| false));
-    assert!(condition.evaluate(|_| true));
+    assert!(!condition.evaluate(|_| false));
+    assert!(!condition.evaluate(|_| true));
 
     let mut iter = condition.iter_attributes();
     assert_eq!(iter.next(), None);
@@ -374,6 +374,14 @@ fn consolidation()
 #[test]
 fn extension()
 {
+    let mut a = vis!();
+    a.and(A);
+    assert_eq!(a, vis!(A));
+
+    let mut a = vis!();
+    a.or(A);
+    assert_eq!(a, vis!(A));
+
     let mut a = vis!(or(A, B));
     a.and(and(not(C), D));
     assert_eq!(a, vis!(and(or(A, B), and(not(C), D))));

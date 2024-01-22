@@ -30,9 +30,9 @@ struct E;
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
-// event sent to empty is seen by all
+// event sent to empty is seen by none
 #[test]
-fn event_to_empty_visible_to_all()
+fn event_to_empty_visible_to_none()
 {
     // prepare tracing
     /*
@@ -61,6 +61,47 @@ fn event_to_empty_visible_to_all()
 
     // send event to empty
     syscall(&mut server_app.world, (E, vis!()), send_event);
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    assert_eq!(syscall(&mut client_app.world, (), read_event::<E>).len(), 0);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+// event sent to global is seen by all
+#[test]
+fn event_to_global_visible_to_all()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .add_server_event::<E>(EventType::Ordered);
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+
+    let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
+
+    // send event to empty
+    syscall(&mut server_app.world, (E, vis!(Global)), send_event);
 
     server_app.update();
     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -109,6 +150,52 @@ fn event_to_condition_visible_to_matching()
 
     // send event to A
     syscall(&mut server_app.world, (E, vis!(A)), send_event);
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app1.update();
+    client_app2.update();
+
+    assert_eq!(syscall(&mut client_app1.world, (), read_event::<E>).len(), 1);
+    assert_eq!(syscall(&mut client_app2.world, (), read_event::<E>).len(), 0);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+// event sent to client ids is seen by matching clients
+#[test]
+fn event_to_clients_visible_to_targets()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    let mut client_app1 = App::new();
+    let mut client_app2 = App::new();
+    for app in [&mut server_app, &mut client_app1, &mut client_app2] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .add_server_event::<E>(EventType::Ordered);
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+
+    let (client_id1, server_port) = common::connect(&mut server_app, &mut client_app1);
+    let client_id2 = 2u64;
+    common::reconnect(&mut server_app, &mut client_app2, client_id2, server_port);
+
+    // send event to client
+    syscall(&mut server_app.world, (E, vis!(Client::from(client_id1))), send_event);
 
     server_app.update();
     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -171,9 +258,9 @@ fn event_before_attributes_not_seen()
 
 //-------------------------------------------------------------------------------------------------------------------
 
-// event sent with empty vis before client connects is not seen
+// event sent with global vis before client connects is not seen
 #[test]
-fn event_to_empty_not_visible_to_unconnected()
+fn event_to_global_not_visible_to_unconnected()
 {
     // prepare tracing
     /*
@@ -199,7 +286,7 @@ fn event_to_empty_not_visible_to_unconnected()
     server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
 
     // send event to empty
-    syscall(&mut server_app.world, (E, vis!()), send_event);
+    syscall(&mut server_app.world, (E, vis!(Global)), send_event);
 
     let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
 

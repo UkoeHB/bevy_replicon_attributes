@@ -82,7 +82,7 @@ impl Plugin for AttributesResetPlugin
 {
     fn build(&self, app: &mut App)
     {
-        app.add_systems(PreUpdate, reset_clients.in_set(VisibilityReconnectSet));
+        app.add_systems(PreUpdate, reset_clients.in_set(VisibilityConnectSet));
     }
 }
 
@@ -95,7 +95,7 @@ impl Plugin for AttributesRepairPlugin
 {
     fn build(&self, app: &mut App)
     {
-        app.add_systems(PreUpdate, repair_clients.in_set(VisibilityReconnectSet));
+        app.add_systems(PreUpdate, repair_clients.in_set(VisibilityConnectSet));
     }
 }
 
@@ -108,24 +108,30 @@ impl Plugin for AttributesRepairPlugin
 #[derive(SystemSet, Debug, Eq, PartialEq, Clone, Hash)]
 pub struct VisibilityUpdateSet;
 
-/// System set that handles client reconnects.
+/// System set that handles client connections.
 ///
 /// Runs in `PreUpdate` after `bevy_replicon::prelude::ServerSet::Receive`.
 ///
 /// See [`ReconnectPolicy`] for the behavior of this set.
 #[derive(SystemSet, Debug, Eq, PartialEq, Clone, Hash)]
-pub struct VisibilityReconnectSet;
+pub struct VisibilityConnectSet;
 
 /// Configures handling of reconnects,
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum ReconnectPolicy
 {
-    /// Reset a client's visibility after a disconnect and when they reconnect.
+    /// Resets a client's visibility when they connect and after a disconnect.
     ///
     /// Only attributes added while the client is connected will be used to determine visibility.
+    ///
+    /// Newly-connected clients always start with the builtin [`Global`] and [`Client`] attributes.
     Reset,
-    /// Preserve client attributes after a disconnect, and repair client visibility within `bevy_replicon` when
+    /// Preserves client attributes after a disconnect, and repairs client visibility within `bevy_replicon` when
     /// the client reconnects.
+    ///
+    /// Attributes can be added to clients at any time, even before they connect for the first time.
+    ///
+    /// Newly-connected clients always start with the builtin [`Global`] and [`Client`] attributes.
     Repair,
 }
 
@@ -143,7 +149,7 @@ impl Plugin for VisibilityAttributesPlugin
     fn build(&self, app: &mut App)
     {
         app.insert_resource(VisibilityCache::new())
-            .configure_sets(PreUpdate, VisibilityReconnectSet.after(ServerSet::Receive))
+            .configure_sets(PreUpdate, VisibilityConnectSet.after(ServerSet::Receive))
             .configure_sets(PostUpdate, VisibilityUpdateSet.before(ServerSet::Send))
             .add_systems(PostUpdate,
                 (

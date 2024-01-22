@@ -51,6 +51,8 @@ where
 //-------------------------------------------------------------------------------------------------------------------
 
 /// Visibility condition builder.
+///
+/// For internal use only.
 #[derive(Debug)]
 pub struct VisibilityConditionBuilder
 {

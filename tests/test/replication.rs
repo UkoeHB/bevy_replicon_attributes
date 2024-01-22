@@ -101,8 +101,8 @@ fn basic_visibility()
 
     let (client_id, _) = common::connect(&mut server_app, &mut client_app);
 
-    // empty Visibility = all can see it
-    server_app.world.spawn((Replication, ComponentA, vis!()));
+    // global Visibility = all can see it
+    server_app.world.spawn((Replication, ComponentA, vis!(Global)));
 
     server_app.update();
     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -148,6 +148,59 @@ fn basic_visibility()
 
 //-------------------------------------------------------------------------------------------------------------------
 
+// client connects after entity spawned with global visibility
+#[test]
+fn connect_after_global_vis_spawn()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<ComponentA>()
+        .replicate::<ComponentB>();
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+
+    // global
+    server_app.world.spawn((Replication, ComponentA, vis!(Global)));
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), 0);
+
+    // connect after spawn
+    let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    let _client_entity = client_app
+        .world
+        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .single(&client_app.world);
+    assert_eq!(client_app.world.entities().len(), 1);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 // client connects after entity spawned with empty visibility
 #[test]
 fn connect_after_empty_vis_spawn()
@@ -176,7 +229,7 @@ fn connect_after_empty_vis_spawn()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
 
-    // empty Visibility = all can see it
+    // empty = invisible
     server_app.world.spawn((Replication, ComponentA, vis!()));
 
     server_app.update();
@@ -192,11 +245,7 @@ fn connect_after_empty_vis_spawn()
     std::thread::sleep(std::time::Duration::from_millis(50));
     client_app.update();
 
-    let _client_entity = client_app
-        .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
-        .single(&client_app.world);
-    assert_eq!(client_app.world.entities().len(), 1);
+    assert_eq!(client_app.world.entities().len(), 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -409,7 +458,7 @@ fn reconnect_and_lose_visibility_repair()
 
 //-------------------------------------------------------------------------------------------------------------------
 
-// [reset] client reconnects and gains visibility of empty vis entity but not new non-empty vis entity
+// [reset] client reconnects and gains visibility of global vis entity but not new non-empty vis entity
 #[test]
 fn reconnect_and_vis_accuracy_reset()
 {
@@ -455,7 +504,7 @@ fn reconnect_and_vis_accuracy_reset()
     assert!(!server_app.world.resource::<RenetServer>().is_connected(ClientId::from_raw(client_id)));
 
     // spawns
-    server_app.world.spawn((Replication, ComponentA, vis!()));
+    server_app.world.spawn((Replication, ComponentA, vis!(Global)));
     server_app.world.spawn((Replication, ComponentB, vis!(B)));
 
     server_app.update();
@@ -481,7 +530,7 @@ fn reconnect_and_vis_accuracy_reset()
 
 //-------------------------------------------------------------------------------------------------------------------
 
-// [repair] client reconnects and gains visibility of newly spawned entity and newly spawned empty vis entity
+// [repair] client reconnects and gains visibility of newly spawned entity and newly spawned global vis entity
 #[test]
 fn reconnect_and_vis_accuracy_repair()
 {
@@ -527,7 +576,7 @@ fn reconnect_and_vis_accuracy_repair()
     assert!(!server_app.world.resource::<RenetServer>().is_connected(ClientId::from_raw(client_id)));
 
     // spawns
-    server_app.world.spawn((Replication, ComponentA, vis!()));
+    server_app.world.spawn((Replication, ComponentA, vis!(Global)));
     server_app.world.spawn((Replication, ComponentB, vis!(B)));
 
     server_app.update();
@@ -1045,6 +1094,57 @@ fn vis_changes_to_empty()
 
     // empty visibility
     server_app.world.entity_mut(server_entity).insert(vis!());
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), 0);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+// entity visibility changes to global
+#[test]
+fn vis_changes_to_global()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<ComponentA>()
+        .replicate::<ComponentB>();
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+
+    let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
+
+    // spawn
+    let server_entity = server_app.world.spawn((Replication, ComponentA, vis!(A))).id();
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), 0);
+
+    // global visibility
+    server_app.world.entity_mut(server_entity).insert(vis!(Global));
 
     server_app.update();
     std::thread::sleep(std::time::Duration::from_millis(50));

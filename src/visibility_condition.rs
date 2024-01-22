@@ -23,7 +23,7 @@ fn evaluate(
     let a = current_node + 1;
     match condition[current_node]
     {
-        VisibilityConditionNode::Empty => { true }
+        VisibilityConditionNode::Empty      => { tracing::error!("found empty node during evaluation"); false },
         VisibilityConditionNode::Attr(attr) => (inspector)(attr),
         VisibilityConditionNode::Not        => !evaluate(inspector, condition, a),
         VisibilityConditionNode::And(b)     => evaluate(inspector, condition, a) && evaluate(inspector, condition, b),
@@ -112,7 +112,7 @@ pub const SMALL_PACK_LEN: usize = 3;
 /// Cloning a condition will *not* allocate.
 ///
 /// Use [`Self::evaluate`] to evaluate the condition.
-/// Note that empty conditions always evaluate to `true`.
+/// Note that empty conditions always evaluate to `false`.
 ///
 /// See also [`Visibility`].
 ///
@@ -186,7 +186,7 @@ impl VisibilityCondition
 
     /// Checks if the current condition is empty.
     ///
-    /// Note that empty conditions always evaluate to `true`.
+    /// Note that empty conditions always evaluate to `false`.
     pub fn is_empty(&self) -> bool
     {
         match self
@@ -200,11 +200,11 @@ impl VisibilityCondition
     ///
     /// The evaluator should check if a given attribute is known. Modifiers (not/and/or) are automatically evaluated.
     ///
-    /// Returns `true` for empty conditions.
+    /// Returns `false` for empty conditions.
     pub fn evaluate(&self, evaluator: impl Fn(VisibilityAttributeId) -> bool) -> bool
     {
         let slice = self.as_slice();
-        if slice.len() == 0 { return true; }
+        if slice.len() == 0 { return false; }
         evaluate(&evaluator, slice, 0)
     }
 

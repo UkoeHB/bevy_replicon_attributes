@@ -4,6 +4,7 @@
 use crate as bevy_replicon_attributes;
 
 //module tree
+mod builtin_attributes;
 mod client_attributes;
 mod server_event_sender;
 mod visibility_attribute;
@@ -13,6 +14,7 @@ mod visibility_condition;
 mod visibility_condition_constructors;
 
 //API exports
+pub use crate::builtin_attributes::*;
 pub use crate::client_attributes::*;
 pub use crate::server_event_sender::*;
 pub use crate::visibility_attribute::*;

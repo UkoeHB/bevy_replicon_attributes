@@ -27,9 +27,6 @@ enum UpdateType
 #[derive(Resource)]
 pub(crate) struct VisibilityCache
 {
-    /// The id for `VisibilityConditionId::empty()`.
-    empty_condition_id: VisibilityConditionId,
-
     /// [ attribute type id : [ condition id ] ]
     attributes: HashMap<VisibilityAttributeId, HashSet<VisibilityConditionId>>,
 
@@ -58,7 +55,6 @@ impl VisibilityCache
     pub(crate) fn new() -> Self
     {
         Self{
-            empty_condition_id: VisibilityCondition::empty().condition_id(),
             attributes: HashMap::default(),
             entities: EntityHashMap::default(),
             conditions: HashMap::default(),
@@ -88,41 +84,6 @@ impl VisibilityCache
         attribute    : VisibilityAttributeId,
     ){
         self.update_client_visibility(client_cache, client_id, attribute, UpdateType::Remove);
-    }
-
-    /// Resets a client client in the cache.
-    ///
-    /// If the client already has attributes regisistered, they are cleared.
-    ///
-    /// The client will evaluate its visibility against the 'empty' visibility condition.
-    pub(crate) fn reset_client(
-        &mut self,
-        client_cache : &mut ClientCache,
-        client_id    : ClientId,
-    ){
-        tracing::debug!(?client_id, "resetting client");
-
-        // Remove the client
-        self.remove_client(client_id);
-
-        // Add a new entry for the client that was just removed.
-        self.clients.insert(client_id, self.attribute_ids_buffer.pop().unwrap_or_default());
-
-        // Update the client set attached to the empty visibility condition.
-        let Some((condition, entities, ref mut clients)) = self.conditions.get_mut(&self.empty_condition_id) else { return; };
-
-        // Save the client's visibility of this condition.
-        clients.insert(client_id);
-
-        // Set visibility for entities attached to the empty visibility condition.
-        let Some(visibility_settings) = client_cache.get_client_mut(client_id).map(|c| c.visibility_mut())
-        else { tracing::error!(?client_id, "resetting client is missing from client cache"); return; };
-
-        for entity in entities.iter()
-        {
-            tracing::trace!(?client_id, ?entity, ?condition, "visibility <true>");
-            visibility_settings.set_visibility(*entity, true);
-        }
     }
 
     /// Removes a client.
@@ -156,6 +117,8 @@ impl VisibilityCache
     }
 
     /// Repairs a client by refreshing visibility of all entities in the [`ClientCache`].
+    ///
+    /// If this is a new client, the builtin [`Global`] and [`Client`] attributes will be inserted.
     pub(crate) fn repair_client(&mut self, client_cache: &mut ClientCache, client_id: ClientId)
     {
         tracing::debug!(?client_id, "repairing client");
@@ -164,6 +127,10 @@ impl VisibilityCache
         let client_attributes = self.clients
             .entry(client_id)
             .or_insert_with(|| self.attribute_ids_buffer.pop().unwrap_or_default());
+
+        // Initialize with Global and Client attributes.
+        client_attributes.insert(Global.attribute_id());
+        client_attributes.insert(Client(client_id).attribute_id());
 
         // Get client visibility settings.
         let Some(visibility_settings) = client_cache.get_client_mut(client_id).map(|c| c.visibility_mut())
@@ -197,9 +164,6 @@ impl VisibilityCache
             true
         };
 
-        // Evaluate the 'empty' visibility condition
-        evaluator(&self.empty_condition_id);
-
         // Iterate all client attributes
         for client_attribute in client_attributes.iter()
         {
@@ -213,6 +177,25 @@ impl VisibilityCache
                 { tracing::error!(?client_id, ?condition_id, "missing condition on repair client visibility"); }
             }
         }
+    }
+
+    /// Resets a client client in the cache.
+    ///
+    /// If the client already has registered attributes, they are cleared.
+    ///
+    /// The client will start with the builtin [`Global`] and [`Client`] attributes.
+    pub(crate) fn reset_client(
+        &mut self,
+        client_cache : &mut ClientCache,
+        client_id    : ClientId,
+    ){
+        tracing::debug!(?client_id, "resetting client");
+
+        // Remove the client
+        self.remove_client(client_id);
+
+        // Reinitialize the client that was just removed.
+        self.repair_client(client_cache, client_id);
     }
 
     /// Updates an entity's visibility condition.

@@ -60,7 +60,7 @@ fn gain_night_vision(
 
 #### Setup
 
-Add replicon to your server app. Most of the time you want the whitelist visibility policy.
+Add replicon to your server app. This crate only works with `VisibilityPolicy::All` and `VisibilityPolicy::Whitelist`.
 
 See [renet](https://github.com/lucaspoffo/renet) for how to set up a renet server.
 
@@ -79,7 +79,7 @@ app.add_plugins(bevy::time::TimePlugin)  //required by bevy_renet
     );
 ```
 
-Add [`VisibilityAttributesPlugin`](bevy_replicon_attributes::VisibilityAttributesPlugin) to your server app. You must specify a [`ReconnectPolicy`](bevy_replicon_attributes::ReconnectPolicy):
+Add [`VisibilityAttributesPlugin`](bevy_replicon_attributes::VisibilityAttributesPlugin) to your server app *after* the replicon plugins. The plugin will panic if you used `VisibilityPolicy::Blacklist`. You must specify a [`ReconnectPolicy`](bevy_replicon_attributes::ReconnectPolicy):
 
 ```rust
 use bevy_replicon_attributes::prelude::*;
@@ -88,7 +88,6 @@ app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::R
 ```
 
 If you choose [`ReconnectPolicy::Repair`](bevy_replicon_attributes::ReconnectPolicy::Repair), we recommend also using [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) for preserving replicated state on clients.
-
 
 #### Define attributes
 
@@ -151,15 +150,19 @@ fn update_visibility_on_connect_events(
 }
 ```
 
+#### Default client attributes
+
+All clients are given the [`Global`](bevy_replicon_attributes::Global) and [`Client`](bevy_replicon_attributes::Client) builtin attributes each time they connect.
+
 #### Entity visibility
 
 Entity visibility is controlled by [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition), which are arbitrary combinations of [`VisibilityAttributes`](bevy_replicon_attributes::VisibilityAttribute) and [`not()`](bevy_replicon_attributes::not)/[`and()`](bevy_replicon_attributes::and)/[`or()`](bevy_replicon_attributes::or) logic.
 
 Entity visibility conditions are evaluated against client attribute lists to determine if entities can be seen by clients.
 
-An empty visibility condition always evaluates to `true`. This way if an entity has no `Visibility` component it will be visible to no clients (assuming you use a whitelist policy), if it has an empty `Visibility` it will be visible to all clients, and if it has a non-empty `Visibility` then it will be visible to clients that match the condition. Semantically, an empty condition matches 'anything', and a non-empty condition is equivalent to `and(ANYTHING, condition)`.
-
 For convenience we have a [`vis!()`](bevy_replicon_attributes::vis) macro which produces new [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components (simple wrappers around [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition)). The [`any!()`](bevy_replicon_attributes::vis)/[`all!()`](bevy_replicon_attributes::vis)/[`none!()`](bevy_replicon_attributes::vis) macros can be used inside the `vis!()` macro in addition to `not()`/`and()`/`or()`.
+
+An empty visibility condition always evaluates to `false`. If you want global visibility for an entity, use the builtin [`Global`](bevy_replicon_attributes::Global) attribute that is given to clients when they connect.
 
 Here is a low-level example how it works. In practice you only need to add [`VisibilityAttributes`](bevy_replicon_attributes::VisibilityAttribute) to clients and [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components to entities. This crate will take care of translating that information into entity visibility within `bevy_replicon`.
 
@@ -239,7 +242,7 @@ fn setup(app: &mut App)
 
 fn send_event(mut sender: ServerEventSender<E>, attributes: ClientAttributes)
 {
-    sender.send(&attributes, E, vis!(any!(Client(1), Client(2), Client(3))));
+    sender.send(&attributes, E, vis!(any!(Client::from(1), Client::from(2), Client::from(3))));
 }
 ```
 

@@ -20,7 +20,7 @@ pub(crate) fn derive_visibility_attribute_impl(input: TokenStream) -> TokenStrea
     let struct_name = &ast.ident;
 
     TokenStream::from(quote! {
-        impl #impl_generics ::bevy_replicon_attributes::DefaultVisibilityAttribute for #struct_name #ty_generics #where_clause
+        impl #impl_generics DefaultVisibilityAttribute for #struct_name #ty_generics #where_clause
         {}
     })
 }
