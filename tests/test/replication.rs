@@ -798,13 +798,518 @@ fn multiple_clients_different_entities()
 
 //-------------------------------------------------------------------------------------------------------------------
 
-
 // entity visibility added after spawn
+#[test]
+fn vis_added_post_spawn()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<ComponentA>()
+        .replicate::<ComponentB>();
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+
+    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+
+    // add attribute
+    syscall(&mut server_app.world, (client_id, A), add_attribute);
+
+    // spawn for A
+    let server_entity = server_app.world.spawn((Replication, ComponentA)).id();
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), 0);
+
+    // visibility for A
+    server_app.world.entity_mut(server_entity).insert(vis!(A));
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    let _client_entity = client_app
+        .world
+        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .single(&client_app.world);
+    assert_eq!(client_app.world.entities().len(), 1);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 // entity visibility added to multiple entities in the same tick
+#[test]
+fn vis_added_multiple_entities_same_tick()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<ComponentA>()
+        .replicate::<ComponentB>();
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+
+    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+
+    // add attribute
+    syscall(&mut server_app.world, (client_id, A), add_attribute);
+
+    // spawns
+    server_app.world.spawn((Replication, ComponentA, vis!(A)));
+    server_app.world.spawn((Replication, ComponentA, vis!(A)));
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    let num = client_app
+        .world
+        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .iter_mut(&mut client_app.world)
+        .len();
+    assert_eq!(num, 2);
+    assert_eq!(client_app.world.entities().len(), 2);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 // entity visibility added to multiple entities in different ticks
+#[test]
+fn vis_added_multiple_entities_different_ticks()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<ComponentA>()
+        .replicate::<ComponentB>();
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+
+    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+
+    // add attribute
+    syscall(&mut server_app.world, (client_id, A), add_attribute);
+
+    // spawns
+    server_app.world.spawn((Replication, ComponentA, vis!(A)));
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    server_app.world.spawn((Replication, ComponentA, vis!(A)));
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    let num = client_app
+        .world
+        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .iter_mut(&mut client_app.world)
+        .len();
+    assert_eq!(num, 2);
+    assert_eq!(client_app.world.entities().len(), 2);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 // entity visibility removed
+#[test]
+fn vis_removed()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<ComponentA>()
+        .replicate::<ComponentB>();
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+
+    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+
+    // add attribute
+    syscall(&mut server_app.world, (client_id, A), add_attribute);
+
+    // spawn
+    let server_entity = server_app.world.spawn((Replication, ComponentA, vis!(A))).id();
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    let _client_entity = client_app
+        .world
+        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .single(&client_app.world);
+    assert_eq!(client_app.world.entities().len(), 1);
+
+    // remove visibility
+    server_app.world.entity_mut(server_entity).remove::<Visibility>();
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), 0);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 // entity visibility changes to empty
+#[test]
+fn vis_changes_to_empty()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<ComponentA>()
+        .replicate::<ComponentB>();
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+
+    let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
+
+    // spawn
+    let server_entity = server_app.world.spawn((Replication, ComponentA, vis!(A))).id();
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), 0);
+
+    // empty visibility
+    server_app.world.entity_mut(server_entity).insert(vis!());
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    let _client_entity = client_app
+        .world
+        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .single(&client_app.world);
+    assert_eq!(client_app.world.entities().len(), 1);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 // entity visibility changes
+#[test]
+fn vis_changes()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<ComponentA>()
+        .replicate::<ComponentB>();
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+
+    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+
+    // add attribute
+    syscall(&mut server_app.world, (client_id, B), add_attribute);
+
+    // spawn
+    let server_entity = server_app.world.spawn((Replication, ComponentA, vis!(A))).id();
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), 0);
+
+    // change to B
+    server_app.world.entity_mut(server_entity).insert(vis!(B));
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    let _client_entity = client_app
+        .world
+        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .single(&client_app.world);
+    assert_eq!(client_app.world.entities().len(), 1);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 // entity visibility changes twice in the same tick
+#[test]
+fn vis_changes_twice_same_tick()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<ComponentA>()
+        .replicate::<ComponentB>();
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+
+    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+
+    // add attribute
+    syscall(&mut server_app.world, (client_id, B), add_attribute);
+
+    // spawn
+    let server_entity = server_app.world.spawn((Replication, ComponentA, vis!(A))).id();
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), 0);
+
+    // change to B
+    server_app.world.entity_mut(server_entity).insert(vis!(B));
+
+    // change to A
+    server_app.world.entity_mut(server_entity).insert(vis!(A));
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), 0);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 // entity visibility added/removed in the same tick
+#[test]
+fn vis_added_removed_same_tick()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<ComponentA>()
+        .replicate::<ComponentB>();
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+
+    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+
+    // add attribute
+    syscall(&mut server_app.world, (client_id, A), add_attribute);
+
+    // spawn
+    let server_entity = server_app.world.spawn((Replication, ComponentA)).id();
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), 0);
+
+    // insert A
+    server_app.world.entity_mut(server_entity).insert(vis!(A));
+
+    // remove A
+    server_app.world.entity_mut(server_entity).remove::<Visibility>();
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), 0);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 // entity visibility added/removed/added in the same tick
+#[test]
+fn vis_added_removed_added_same_tick()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<ComponentA>()
+        .replicate::<ComponentB>();
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+
+    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+
+    // add attribute
+    syscall(&mut server_app.world, (client_id, A), add_attribute);
+
+    // spawn
+    let server_entity = server_app.world.spawn((Replication, ComponentA)).id();
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), 0);
+
+    // insert A
+    server_app.world.entity_mut(server_entity).insert(vis!(A));
+
+    // remove A
+    server_app.world.entity_mut(server_entity).remove::<Visibility>();
+
+    // insert A
+    server_app.world.entity_mut(server_entity).insert(vis!(A));
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app.update();
+
+    let _client_entity = client_app
+        .world
+        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .single(&client_app.world);
+    assert_eq!(client_app.world.entities().len(), 1);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
