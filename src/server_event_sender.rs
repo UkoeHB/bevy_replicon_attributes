@@ -27,7 +27,7 @@ impl<'w, T: Event + Clone> ServerEventSender<'w, T>
     /// Sends an event to clients that satisfy the visibility condition.
     ///
     /// Note that the event will be cloned for each client.
-    pub fn send(&mut self, attributes: &ClientAttributes<'w>, event: T, condition: VisibilityCondition)
+    pub fn send(&mut self, attributes: &ClientAttributes, event: T, condition: Visibility)
     {
         self.writer
             .send_batch(

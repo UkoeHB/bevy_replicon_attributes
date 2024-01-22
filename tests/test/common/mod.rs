@@ -159,3 +159,25 @@ pub(super) fn remove_attribute<T: VisibilityAttribute>(In((id, attribute)): In<(
 }
 
 //-------------------------------------------------------------------------------------------------------------------
+
+pub(super) fn send_event<E: Event + Clone>(
+    In((event, vis)): In<(E, Visibility)>,
+    attributes: ClientAttributes,
+    mut sender: ServerEventSender<E>,
+){
+    sender.send(&attributes, event, vis);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+pub(super) fn read_event<E: Event + Copy>(mut reader: EventReader<E>) -> Vec<E>
+{
+    let mut events = Vec::default();
+    for event in reader.read()
+    {
+        events.push(*event);
+    }
+    events
+}
+
+//-------------------------------------------------------------------------------------------------------------------
