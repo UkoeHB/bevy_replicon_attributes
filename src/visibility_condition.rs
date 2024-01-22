@@ -112,6 +112,7 @@ pub const SMALL_PACK_LEN: usize = 3;
 /// Cloning a condition will *not* allocate.
 ///
 /// Use [`Self::evaluate`] to evaluate the condition.
+/// Note that empty conditions always evaluate to `true`.
 ///
 /// See also [`Visibility`].
 ///
@@ -180,6 +181,18 @@ impl VisibilityCondition
         {
             Self::Small(condition) => condition.as_slice(),
             Self::Large(condition) => condition,
+        }
+    }
+
+    /// Checks if the current condition is empty.
+    ///
+    /// Note that empty conditions always evaluate to `true`.
+    pub fn is_empty(&self) -> bool
+    {
+        match self
+        {
+            Self::Small(condition) => condition.len() == 1 && matches!(condition[0], VisibilityConditionNode::Empty),
+            Self::Large(condition) => condition.len() == 1 && matches!(condition[0], VisibilityConditionNode::Empty),
         }
     }
 

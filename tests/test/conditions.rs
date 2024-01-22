@@ -74,6 +74,7 @@ fn test_macro()
 fn empty_check()
 {
     let condition = vis!();
+    assert!(condition.is_empty());
     assert!(condition.evaluate(|_| false));
     assert!(condition.evaluate(|_| true));
 
@@ -89,6 +90,7 @@ fn empty_check()
 fn derive_attr_check()
 {
     let condition = vis!(Test);
+    assert!(!condition.is_empty());
     assert!(condition.evaluate(|a| a == Test.attribute_id()));
     assert!(!condition.evaluate(|a| a != Test.attribute_id()));
     assert!(!condition.evaluate(|a| a == Dummy.attribute_id()));
@@ -416,10 +418,12 @@ fn removal()
     let mut a = vis!(and(A, B));
     a.remove(B);
     assert_eq!(a, vis!(A));
+    assert!(!a.is_empty());
 
     let mut b = vis!(or(A, not(B)));
     b.remove(or(A, not(B)));
     assert_eq!(b, vis!());
+    assert!(b.is_empty());
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -430,10 +434,12 @@ fn removal_by_type()
     let mut a = vis!(and(Manual(0), not(Manual(1))));
     a.remove_type::<Manual>();
     assert_eq!(a, vis!());
+    assert!(a.is_empty());
 
     let mut b = vis!(or(Manual(1), Manual2(2)));
     b.remove_type::<Manual>();
     assert_eq!(b, vis!(Manual2(2)));
+    assert!(!b.is_empty());
 }
 
 //-------------------------------------------------------------------------------------------------------------------
