@@ -453,23 +453,3 @@ where
 }
 
 //-------------------------------------------------------------------------------------------------------------------
-
-/// Syntax sugar for the bundle `(Replication, vis!([your visibility condition]))`.
-/// 
-/// Semantically, the bundle produced here replicates an entity to clients that match the specified visibility condition.
-/// 
-/// Example:
-/**
-```rust
-commands.spawn((PlayerInventory, replicate_to!(IsClient(client_id))));
-```
-*/
-#[macro_export] macro_rules! replicate_to
-{
-    ($($condition:tt)*) =>
-    {
-        (Replication, vis!($($condition)*))
-    };
-}
-
-//-------------------------------------------------------------------------------------------------------------------

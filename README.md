@@ -217,24 +217,6 @@ vis!()
 
 ```
 
-#### Replicating entities
-
-We include a [`replicate_to!()`](bevy_replicon_attributes::replicate_to) macro that simplifies spawning replicated entities.
-
-```rust
-use bevy::prelude::*;
-use bevy_replicon_attributes::prelude::*;
-
-#[derive(Component)]
-struct Ward;
-
-fn easy_spawn(mut commands: Commands)
-{
-    commands.spawn((Ward, replicate_to!(and(InLocation(x, y), InTeam(team)))));
-    //equivalent: commands.spawn((Ward, Replication, vis!(and(InLocation(x, y), InTeam(team)))));
-}
-```
-
 #### Server events
 
 Visibility of server events can be controlled with the [`ServerEventSender`](bevy_replicon_attributes::ServerEventSender) system parameter.
