@@ -175,12 +175,12 @@ fn entity_demo(
 
     // Add location to client.
     attributes.add(client_id, InLocation(0, 20));
-    let client_attributes = attributes.get(client_id).unwrap();
 
     // Make location condition.
     let location = vis!(InLocation(0, 20));
 
     // Evaluate condition.
+    let client_attributes = attributes.get(client_id).unwrap();
     assert!(location.evaluate(|a| client_attributes.contains(&a)));
 
     // Spawn entity.
@@ -202,17 +202,17 @@ vis!(and(A, not(B)));
 vis!(and(A, vis!(B)));
 
 // Helpers
-vis!(any!(A, B, C));   //equivalent: vis!(or(A, or(B, C)))
-vis!(all!(A, B, C));   //equivalent: vis!(and(A, and(B, C)))
-vis!(none!(A, B, C));  //equivalent: vis!(none(or(A, or(B, C)))))
+vis!(any!(A, B, C));   // vis!(or(A, or(B, C)))
+vis!(all!(A, B, C));   // vis!(and(A, and(B, C)))
+vis!(none!(A, B, C));  // vis!(not(or(A, or(B, C)))))
 
 // Modification
 vis!()
-    .and(A)
-    .or(B)
-    .replace(or(A, B), and(C(1), D))  //pattern replacement
-    .replace_type::<C>(E(2))  //replaces all attributes of type C with E(2)
-    .remove(E(2))  //removing nodes causes the condition to simplify itself
+    .and(A)                           // vis!(A)
+    .or(B)                            // vis!(or(A, B))
+    .replace(or(A, B), and(C(1), D))  // vis!(and(C(1), D))
+    .replace_type::<C>(E(2))          // vis!(and(E(2), D))
+    .remove(E(2))                     // vis!(D)
     ;
 
 ```
@@ -225,21 +225,19 @@ We include a [`replicate_to!()`](bevy_replicon_attributes::replicate_to) macro t
 use bevy::prelude::*;
 use bevy_replicon_attributes::prelude::*;
 
+#[derive(Component)]
+struct Ward;
+
 fn easy_spawn(mut commands: Commands)
 {
-    commands.spawn(
-        (
-            Ward,
-            replicate_to!(and(InLocation(x, y), InTeam(team)))
-            //equivalent: (Replication, vis!(and(InLocation(x, y), InTeam(team))))
-        )
-    );
+    commands.spawn((Ward, replicate_to!(and(InLocation(x, y), InTeam(team)))));
+    //equivalent: commands.spawn((Ward, Replication, vis!(and(InLocation(x, y), InTeam(team)))));
 }
 ```
 
 #### Server events
 
-Visibility of server events can be controlled with the [`ServerEventSender`](bevy_replicon_attributes::ServerEventSender) system param.
+Visibility of server events can be controlled with the [`ServerEventSender`](bevy_replicon_attributes::ServerEventSender) system parameter.
 
 Server events must be registered with `bevy_replicon`. Clients will receive server events with `EventReader<T>`.
 
@@ -254,7 +252,7 @@ struct E;
 fn setup(app: &mut App)
 {
     // Replicon server event registration
-    app.add_server_event::<E>();
+    app.add_server_event::<E>(EventType::Ordered);
 }
 
 fn send_event(mut sender: ServerEventSender<E>, attributes: ClientAttributes)
