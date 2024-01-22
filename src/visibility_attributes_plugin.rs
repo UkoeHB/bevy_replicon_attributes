@@ -4,7 +4,7 @@ use crate::*;
 //third-party shortcuts
 use bevy::prelude::*;
 use bevy_replicon::renet::ServerEvent;
-use bevy_replicon::prelude::{ClientCache, ServerSet};
+use bevy_replicon::prelude::{ClientCache, ServerSet, VisibilityPolicy};
 
 //standard shortcuts
 
@@ -148,6 +148,17 @@ impl Plugin for VisibilityAttributesPlugin
 {
     fn build(&self, app: &mut App)
     {
+        //todo: replace with plugin dependencies in bevy v0.13
+        let cache = app
+            .world
+            .get_resource::<ClientCache>()
+            .expect("bevy_replicon plugins are required for VisibilityAttributesPlugin");
+        if let VisibilityPolicy::Blacklist = cache.visibility_policy()
+        {
+            panic!("bevy_replicon VisibilityPolicy::Blacklist is not compatible with VisibilityAttributesPlugin, use \
+                VisibilityPolicy::Whitelist instead");
+        }
+
         app.insert_resource(VisibilityCache::new())
             .configure_sets(PreUpdate, VisibilityConnectSet.after(ServerSet::Receive))
             .configure_sets(PostUpdate, VisibilityUpdateSet.before(ServerSet::Send))

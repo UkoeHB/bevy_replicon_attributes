@@ -35,6 +35,55 @@ struct ComponentB;
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
+// visibility blacklist is not allowed
+#[should_panic]
+#[test]
+fn blacklist_disallowed()
+{
+    App::new().add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                visibility_policy: VisibilityPolicy::Blacklist,
+                ..Default::default()
+            }),
+        ))
+        .add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+// visibility whitelist is allowed
+#[test]
+fn whitelist_allowed()
+{
+    App::new().add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+// visibility all is allowed
+#[test]
+fn all_disallowed()
+{
+    App::new().add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                visibility_policy: VisibilityPolicy::All,
+                ..Default::default()
+            }),
+        ))
+        .add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 // normal replication works with plugin
 #[test]
 fn normal_replication()
