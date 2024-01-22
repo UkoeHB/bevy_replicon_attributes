@@ -36,7 +36,7 @@ fn create_server_transport() -> NetcodeServerTransport {
         .expect("socket should autodetect local address");
     let server_config = ServerConfig {
         current_time,
-        max_clients: 1,
+        max_clients: 10,
         protocol_id: PROTOCOL_ID,
         public_addresses: vec![public_addr],
         authentication: ServerAuthentication::Unsecure,
@@ -103,6 +103,7 @@ pub(super) fn connect(server_app: &mut App, client_app: &mut App) -> (u64, u16)
         .insert_resource(client_transport);
 
     loop {
+        std::thread::sleep(std::time::Duration::from_millis(10));
         client_app.update();
         server_app.update();
         if client_app.world.resource::<RenetClient>().is_connected() {
@@ -134,6 +135,7 @@ pub(super) fn reconnect(server_app: &mut App, client_app: &mut App, client_id: u
         .insert_resource(client_transport);
 
     loop {
+        std::thread::sleep(std::time::Duration::from_millis(10));
         client_app.update();
         server_app.update();
         if client_app.world.resource::<RenetClient>().is_connected() {

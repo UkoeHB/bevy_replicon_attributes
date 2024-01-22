@@ -100,7 +100,7 @@ impl VisibilityCache
         client_cache : &mut ClientCache,
         client_id    : ClientId,
     ){
-        tracing::info!(?client_id, "resetting client");
+        tracing::debug!(?client_id, "resetting client");
 
         // Remove the client
         self.remove_client(client_id);
@@ -128,7 +128,7 @@ impl VisibilityCache
     /// Removes a client.
     pub(crate) fn remove_client(&mut self, client_id: ClientId)
     {
-        tracing::info!(?client_id, "removing client");
+        tracing::debug!(?client_id, "removing client");
 
         // Remove client entry
         let Some(mut attribute_ids) = self.clients.remove(&client_id) else { return; };
@@ -158,7 +158,7 @@ impl VisibilityCache
     /// Repairs a client by refreshing visibility of all entities in the [`ClientCache`].
     pub(crate) fn repair_client(&mut self, client_cache: &mut ClientCache, client_id: ClientId)
     {
-        tracing::info!(?client_id, "repairing client");
+        tracing::debug!(?client_id, "repairing client");
 
         // Access client attributes.
         let client_attributes = self.clients
