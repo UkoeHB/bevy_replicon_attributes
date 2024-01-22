@@ -262,3 +262,11 @@ fn send_event(mut sender: ServerEventSender<E>, attributes: ClientAttributes)
     sender.send(&attributes, E, vis!(any!(Client(1), Client(2), Client(3))));
 }
 ```
+
+
+
+## `bevy_replicon` compatability
+
+| `bevy_replicon` | `bevy_replicon_attributes` |
+|-------|----------------|
+| 0.21  | 0.1 - master |
