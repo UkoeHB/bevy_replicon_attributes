@@ -115,7 +115,7 @@ pub(super) fn connect(server_app: &mut App, client_app: &mut App) -> (u64, u16)
 
 //-------------------------------------------------------------------------------------------------------------------
 
-pub(super) fn _reconnect(server_app: &mut App, client_app: &mut App, client_id: u64, server_port: u16)
+pub(super) fn reconnect(server_app: &mut App, client_app: &mut App, client_id: u64, server_port: u16)
 {
     let network_channels = client_app.world.resource::<NetworkChannels>();
     let server_channels_config = network_channels.get_server_configs();
