@@ -299,6 +299,18 @@ impl VisibilityCache
         self.clients.get(&client_id)
     }
 
+    /// Evaluates a visibility condition againt a single client.
+    pub(crate) fn client_visibility<'s, 'a: 's>(
+        &'s self,
+        client_id : ClientId,
+        condition : &'a VisibilityCondition,
+    ) -> bool
+    {
+        self.clients
+            .get(&client_id)
+            .map_or(false, |attrs| condition.evaluate(|a| attrs.contains(&a)))
+    }
+
     /// Iterates a client's attributes.
     pub(crate) fn iter_client_attributes(&self, client_id: ClientId) -> impl Iterator<Item = VisibilityAttributeId> + '_
     {

@@ -361,6 +361,80 @@ fn connect_after_nonempty_vis_spawn()
 
 //-------------------------------------------------------------------------------------------------------------------
 
+// VisibilityCache::evaluate_connected only sees connected clients even with replicon-repair and Repair policy
+#[test]
+fn mismatched_connections_with_repair()
+{
+    // prepare tracing
+    // /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    // */
+
+    let mut server_app = App::new();
+    let mut client_app1 = App::new();
+    let mut client_app2 = App::new();
+    for app in [&mut server_app, &mut client_app1, &mut client_app2] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .replicate_repair::<ComponentA>();
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Repair });
+    client_app1.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
+    client_app2.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
+
+    let (client_id1, server_port) = common::connect(&mut server_app, &mut client_app1);
+    let client_id2 = 2u64;
+    common::reconnect(&mut server_app, &mut client_app2, client_id2, server_port);
+
+    // add attribute
+    syscall(&mut server_app.world, (client_id1, A), add_attribute);
+    syscall(&mut server_app.world, (client_id2, A), add_attribute);
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app1.update();
+    client_app2.update();
+
+    // invoke evaluate_connected
+    assert_eq!(syscall(&mut server_app.world, vis!(A), evaluate_connected), 2);
+
+    // disconnect
+    client_app1.world.resource_mut::<RenetClient>().disconnect();
+    client_app1.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.update();
+    server_app.update();
+    assert!(!server_app.world.resource::<RenetServer>().is_connected(ClientId::from_raw(client_id1)));
+
+    // invoke evaluate_connected
+    assert_eq!(syscall(&mut server_app.world, vis!(A), evaluate_connected), 1);
+
+    // reconnect
+    common::reconnect(&mut server_app, &mut client_app1, client_id1, server_port);
+    let _ = client_app1.world.resource_mut::<RepliconTick>().into_inner().increment();  //trigger repair
+    client_app1.update();
+    assert_eq!(*client_app1.world.resource::<State<ClientRepairState>>(), ClientRepairState::Done);
+
+    server_app.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    client_app1.update();
+    client_app2.update();
+
+    // invoke evaluate_connected
+    assert_eq!(syscall(&mut server_app.world, vis!(A), evaluate_connected), 2);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 // [reset] client reconnects and loses visibility
 #[test]
 fn reconnect_and_lose_visibility_reset()

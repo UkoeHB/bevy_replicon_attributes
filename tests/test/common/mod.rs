@@ -181,3 +181,10 @@ pub(super) fn read_event<E: Event + Copy>(mut reader: EventReader<E>) -> Vec<E>
 }
 
 //-------------------------------------------------------------------------------------------------------------------
+
+pub(super) fn evaluate_connected(In(vis): In<Visibility>, attributes: ClientAttributes) -> usize
+{
+    attributes.evaluate_connected(&vis).count()
+}
+
+//-------------------------------------------------------------------------------------------------------------------

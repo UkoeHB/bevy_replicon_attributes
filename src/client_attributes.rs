@@ -5,7 +5,7 @@ use crate::*;
 use bevy::prelude::*;
 use bevy::ecs::system::SystemParam;
 use bevy_replicon::renet::ClientId;
-use bevy_replicon::prelude::ClientCache;
+use bevy_replicon::prelude::{ClientCache, RepliconTick};
 
 //standard shortcuts
 use std::collections::HashSet;
@@ -63,6 +63,26 @@ impl<'w> ClientAttributes<'w>
     pub fn evaluate<'s, 'a: 's>(&'s self, condition: &'a VisibilityCondition) -> impl Iterator<Item = ClientId> + '_
     {
         self.cache.iter_client_visibility(condition)
+    }
+
+    /// Evaluates a visibility condition against connected clients and returns an iterator of
+    /// clients that evaluate true.
+    ///
+    /// Includes the client's replicon change tick, which can be used if constructing server events manually.
+    pub fn evaluate_connected<'s, 'a: 's>(
+        &'s self,
+        condition: &'a VisibilityCondition
+    ) -> impl Iterator<Item = (ClientId, RepliconTick)> + '_
+    {
+        self.client_info
+            .iter()
+            .filter_map(
+                |client_state|
+                {
+                    if !self.cache.client_visibility(client_state.id(), condition) { return None; }
+                    Some((client_state.id(), client_state.change_tick))
+                }
+            )
     }
 }
 
