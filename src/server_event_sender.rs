@@ -4,7 +4,7 @@ use crate::*;
 //third-party shortcuts
 use bevy::prelude::*;
 use bevy::ecs::system::SystemParam;
-use bevy_replicon::prelude::{SendMode, ToClients};
+use bevy_replicon::prelude::{ClientState, SendMode, ToClients};
 
 //standard shortcuts
 
@@ -24,7 +24,7 @@ pub struct ServerEventSender<'w, T: Event + Clone>
 
 impl<'w, T: Event + Clone> ServerEventSender<'w, T>
 {
-    /// Sends an event to clients that satisfy the visibility condition.
+    /// Sends an event to connected clients that satisfy the visibility condition.
     ///
     /// Note that the event will be cloned for each client.
     pub fn send(&mut self, attributes: &ClientAttributes, event: T, condition: Visibility)
@@ -32,11 +32,31 @@ impl<'w, T: Event + Clone> ServerEventSender<'w, T>
         self.writer
             .send_batch(
                 attributes
-                    .evaluate(&condition)
-                    .map(|id|
+                    .evaluate_connected(&condition)
+                    .map(|client_state|
                         ToClients{
-                            mode  : SendMode::Direct(id),
+                            mode  : SendMode::Direct(client_state.id()),
                             event : event.clone(),
+                        }
+                    )
+            )
+    }
+
+    /// Sends an event to connected clients that satisfy the visibility condition using a custom event producer.
+    pub fn send_with(
+        &mut self,
+        attributes   : &ClientAttributes,
+        condition    : Visibility,
+        mut producer : impl FnMut(&ClientState) -> T,
+    ){
+        self.writer
+            .send_batch(
+                attributes
+                    .evaluate_connected(&condition)
+                    .map(|client_state|
+                        ToClients{
+                            mode  : SendMode::Direct(client_state.id()),
+                            event : (producer)(client_state),
                         }
                     )
             )
