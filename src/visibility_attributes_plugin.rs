@@ -3,11 +3,26 @@ use crate::*;
 
 //third-party shortcuts
 use bevy::prelude::*;
-use bevy_replicon::renet::ServerEvent;
+use bevy_replicon::renet::{ClientId, ServerEvent};
 use bevy_replicon::prelude::{ClientCache, ServerSet, VisibilityPolicy};
 
 //standard shortcuts
 
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+fn add_server_to_cache(server_id: ClientId) -> impl FnMut(ResMut<'_, VisibilityCache>, ResMut<'_, ClientCache>)
+{
+    move
+    |
+        mut visibility_cache : ResMut<VisibilityCache>,
+        mut client_cache     : ResMut<ClientCache>
+    |
+    {
+        visibility_cache.add_server_as_client(&mut client_cache, server_id);
+    }
+}
 
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
@@ -140,6 +155,10 @@ pub enum ReconnectPolicy
 /// Plugin that sets up visibility handling systems.
 pub struct VisibilityAttributesPlugin
 {
+    /// Records the server's `ClientId` if it is a player.
+    ///
+    /// This needs to be set if you want events sent via [`ServerEventSender`] to be echoed to the server.
+    pub server_id: Option<ClientId>,
     /// See [`ReconnectPolicy`].
     pub reconnect_policy: ReconnectPolicy,
 }
@@ -176,6 +195,11 @@ impl Plugin for VisibilityAttributesPlugin
         {
             ReconnectPolicy::Reset  => { app.add_plugins(AttributesResetPlugin); }
             ReconnectPolicy::Repair => { app.add_plugins(AttributesRepairPlugin); }
+        }
+
+        if let Some(server_id) = self.server_id
+        {
+            app.add_systems(Startup, add_server_to_cache(server_id));
         }
     }
 }

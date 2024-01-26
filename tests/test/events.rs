@@ -55,7 +55,7 @@ fn event_to_empty_visible_to_none()
         ))
         .add_server_event::<E>(EventType::Ordered);
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -96,7 +96,7 @@ fn event_to_global_visible_to_all()
         ))
         .add_server_event::<E>(EventType::Ordered);
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -138,7 +138,7 @@ fn event_to_condition_visible_to_matching()
         ))
         .add_server_event::<E>(EventType::Ordered);
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id1, server_port) = common::connect(&mut server_app, &mut client_app1);
     let client_id2 = 2u64;
@@ -188,7 +188,7 @@ fn event_to_clients_visible_to_targets()
         ))
         .add_server_event::<E>(EventType::Ordered);
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id1, server_port) = common::connect(&mut server_app, &mut client_app1);
     let client_id2 = 2u64;
@@ -234,7 +234,7 @@ fn event_before_attributes_not_seen()
         ))
         .add_server_event::<E>(EventType::Ordered);
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id1, server_port) = common::connect(&mut server_app, &mut client_app1);
     let client_id2 = 2u64;
@@ -283,7 +283,7 @@ fn event_to_global_not_visible_to_unconnected()
         ))
         .add_server_event::<E>(EventType::Ordered);
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     // send event to empty
     syscall(&mut server_app.world, (E, vis!(Global)), send_event);
@@ -325,7 +325,7 @@ fn multiple_events_same_tick_seen()
         ))
         .add_server_event::<E>(EventType::Ordered);
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id1, server_port) = common::connect(&mut server_app, &mut client_app1);
     let client_id2 = 2u64;
@@ -346,6 +346,86 @@ fn multiple_events_same_tick_seen()
 
     assert_eq!(syscall(&mut client_app1.world, (), read_event::<E>).len(), 2);
     assert_eq!(syscall(&mut client_app2.world, (), read_event::<E>).len(), 2);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+// event sent w/ server-as-player is seen by server
+#[test]
+fn event_to_server_visible_to_server()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    for app in [&mut server_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .add_server_event::<E>(EventType::Ordered);
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: Some(SERVER_ID), reconnect_policy: ReconnectPolicy::Reset });
+
+    // initialize the server app
+    server_app.update();
+
+    // send event
+    syscall(&mut server_app.world, (E, vis!(Global)), send_event);
+
+    // update app for local resending
+    server_app.update();
+
+    assert_eq!(syscall(&mut server_app.world, (), read_event::<E>).len(), 1);
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+// event sent w/ server-as-player but wrong visibility is not seen by server
+#[test]
+fn event_not_visible_to_server()
+{
+    // prepare tracing
+    /*
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    */
+
+    let mut server_app = App::new();
+    for app in [&mut server_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .add_server_event::<E>(EventType::Ordered);
+    }
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: Some(SERVER_ID), reconnect_policy: ReconnectPolicy::Reset });
+
+    // initialize the server app
+    server_app.update();
+
+    // send event
+    syscall(&mut server_app.world, (E, vis!(A)), send_event);
+
+    // update app for local resending
+    server_app.update();
+
+    assert_eq!(syscall(&mut server_app.world, (), read_event::<E>).len(), 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------

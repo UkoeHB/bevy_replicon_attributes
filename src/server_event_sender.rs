@@ -39,15 +39,28 @@ impl<'w, T: Event + Clone> ServerEventSender<'w, T>
                             event : event.clone(),
                         }
                     )
-            )
+                    .chain(
+                        attributes
+                            .evaluate_server_player(&condition)
+                            .map(|server_id|
+                                ToClients{
+                                    mode  : SendMode::Direct(server_id),
+                                    event : event.clone(),
+                                }
+                            )
+                            .into_iter()
+                    )
+            );
     }
 
     /// Sends an event to connected clients that satisfy the visibility condition using a custom event producer.
+    ///
+    /// If no producer is passed into the producer, assume it is being invoked for the 'server player'.
     pub fn send_with(
         &mut self,
         attributes   : &ClientAttributes,
         condition    : Visibility,
-        mut producer : impl FnMut(&ClientState) -> T,
+        mut producer : impl FnMut(Option<&ClientState>) -> T,
     ){
         self.writer
             .send_batch(
@@ -56,10 +69,23 @@ impl<'w, T: Event + Clone> ServerEventSender<'w, T>
                     .map(|client_state|
                         ToClients{
                             mode  : SendMode::Direct(client_state.id()),
-                            event : (producer)(client_state),
+                            event : (producer)(Some(client_state)),
                         }
                     )
-            )
+            );
+
+        if let Some(local_event) =
+            attributes
+                .evaluate_server_player(&condition)
+                .map(|server_id|
+                    ToClients{
+                        mode  : SendMode::Direct(server_id),
+                        event : (producer)(None),
+                    }
+                )
+        {
+            self.writer.send(local_event);
+        }
     }
 }
 

@@ -59,14 +59,17 @@ impl<'w> ClientAttributes<'w>
         self.cache.iter_client_attributes(client_id)
     }
 
-    /// Evaluates a visibility condition againt all clients and returns an iterator of clients that evaluate true.
+    /// Evaluates a visibility condition against all clients.
+    ///
+    /// Returns an iterator of clients that evaluate true.
     pub fn evaluate<'s, 'a: 's>(&'s self, condition: &'a VisibilityCondition) -> impl Iterator<Item = ClientId> + '_
     {
         self.cache.iter_client_visibility(condition)
     }
 
-    /// Evaluates a visibility condition against connected clients and returns an iterator of
-    /// clients that evaluate true.
+    /// Evaluates a visibility condition against connected clients.
+    ///
+    /// Returns an iterator of client ids and last-change ticks for clients that evaluate true.
     pub fn evaluate_connected<'s, 'a: 's>(
         &'s self,
         condition: &'a VisibilityCondition
@@ -81,6 +84,23 @@ impl<'w> ClientAttributes<'w>
                     Some(client_state)
                 }
             )
+    }
+
+    /// Evaluates a visibility condition against the 'server player' if it exists.
+    ///
+    /// Returns `None` if the server player doesn't exist or they don't satisfy the visibility condition.
+    pub fn evaluate_server_player<'s, 'a: 's>(
+        &'s self,
+        condition: &'a VisibilityCondition
+    ) -> Option<ClientId>
+    {
+        let Some(server_id) = self.cache.server_id() else { return None; };
+
+        match self.cache.client_visibility(server_id, condition)
+        {
+            true  => Some(server_id),
+            false => None,
+        }
     }
 }
 

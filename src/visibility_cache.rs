@@ -47,6 +47,9 @@ pub(crate) struct VisibilityCache
     client_ids_buffer: Vec<HashSet<ClientId>>,
     /// Attribute id sets cached for use by future clients.
     attribute_ids_buffer: Vec<HashSet<VisibilityAttributeId>>,
+
+    /// Server id if the server is treated as a player.
+    server_id: Option<ClientId>,
 }
 
 impl VisibilityCache
@@ -63,7 +66,24 @@ impl VisibilityCache
             entities_buffer: Vec::default(),
             client_ids_buffer: Vec::default(),
             attribute_ids_buffer: Vec::default(),
+            server_id: None,
         }
+    }
+
+    /// Adds a special 'server player' that is always considered connected.
+    pub(crate) fn add_server_as_client(
+        &mut self,
+        client_cache : &mut ClientCache,
+        server_id    : ClientId
+    ){
+        self.reset_client(client_cache, server_id);
+        self.server_id = Some(server_id);
+    }
+
+    /// Gets the server player's client id.
+    pub(crate) fn server_id(&self) -> Option<ClientId>
+    {
+        self.server_id
     }
 
     /// Adds an attribute to a client.

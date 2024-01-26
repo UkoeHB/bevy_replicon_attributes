@@ -47,7 +47,7 @@ fn blacklist_disallowed()
                 ..Default::default()
             }),
         ))
-        .add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+        .add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -63,7 +63,7 @@ fn whitelist_allowed()
                 ..Default::default()
             }),
         ))
-        .add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+        .add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -79,7 +79,7 @@ fn all_disallowed()
                 ..Default::default()
             }),
         ))
-        .add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+        .add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -101,7 +101,7 @@ fn normal_replication()
         ))
         .replicate::<ComponentA>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     common::connect(&mut server_app, &mut client_app);
 
@@ -146,7 +146,7 @@ fn basic_visibility()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -223,7 +223,7 @@ fn connect_after_global_vis_spawn()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     // global
     server_app.world.spawn((Replication, ComponentA, vis!(Global)));
@@ -276,7 +276,7 @@ fn connect_after_empty_vis_spawn()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     // empty = invisible
     server_app.world.spawn((Replication, ComponentA, vis!()));
@@ -325,7 +325,7 @@ fn connect_after_nonempty_vis_spawn()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     // spawn for A
     server_app.world.spawn((Replication, ComponentA, vis!(A)));
@@ -366,12 +366,12 @@ fn connect_after_nonempty_vis_spawn()
 fn mismatched_connections_with_repair()
 {
     // prepare tracing
-    // /*
+    /*
     let subscriber = tracing_subscriber::FmtSubscriber::builder()
         .with_max_level(tracing::Level::TRACE)
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
-    // */
+    */
 
     let mut server_app = App::new();
     let mut client_app1 = App::new();
@@ -387,7 +387,7 @@ fn mismatched_connections_with_repair()
         ))
         .replicate_repair::<ComponentA>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Repair });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Repair });
     client_app1.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
     client_app2.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
 
@@ -461,7 +461,7 @@ fn reconnect_and_lose_visibility_reset()
         .replicate_repair::<ComponentA>()
         .replicate_repair::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
     client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
 
     let (client_id, server_port) = common::connect(&mut server_app, &mut client_app);
@@ -532,7 +532,7 @@ fn reconnect_and_lose_visibility_repair()
         .replicate_repair::<ComponentA>()
         .replicate_repair::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Repair });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Repair });
     client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
 
     let (client_id, server_port) = common::connect(&mut server_app, &mut client_app);
@@ -607,7 +607,7 @@ fn reconnect_and_vis_accuracy_reset()
         .replicate_repair::<ComponentA>()
         .replicate_repair::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
     client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
 
     let (client_id, server_port) = common::connect(&mut server_app, &mut client_app);
@@ -679,7 +679,7 @@ fn reconnect_and_vis_accuracy_repair()
         .replicate_repair::<ComponentA>()
         .replicate_repair::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Repair });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Repair });
     client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
 
     let (client_id, server_port) = common::connect(&mut server_app, &mut client_app);
@@ -755,7 +755,7 @@ fn remove_attribute_from_client()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -813,7 +813,7 @@ fn add_remove_attribute_same_tick()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -861,7 +861,7 @@ fn add_remove_add_attribute_same_tick()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -917,7 +917,7 @@ fn multiple_clients_different_entities()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id1, server_port) = common::connect(&mut server_app, &mut client_app1);
     let client_id2 = 2u64;
@@ -977,7 +977,7 @@ fn vis_added_post_spawn()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -1035,7 +1035,7 @@ fn vis_added_multiple_entities_same_tick()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -1087,7 +1087,7 @@ fn vis_added_multiple_entities_different_ticks()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -1144,7 +1144,7 @@ fn vis_removed()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -1202,7 +1202,7 @@ fn vis_changes_to_empty()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -1253,7 +1253,7 @@ fn vis_changes_to_global()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -1308,7 +1308,7 @@ fn vis_changes()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -1366,7 +1366,7 @@ fn vis_changes_twice_same_tick()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -1423,7 +1423,7 @@ fn vis_added_removed_same_tick()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id, _) = common::connect(&mut server_app, &mut client_app);
 
@@ -1480,7 +1480,7 @@ fn vis_added_removed_added_same_tick()
         .replicate::<ComponentA>()
         .replicate::<ComponentB>();
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     let (client_id, _) = common::connect(&mut server_app, &mut client_app);
 
