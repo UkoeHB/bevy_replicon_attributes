@@ -4,8 +4,8 @@
 
 ### Changed
 
-- `ServerEventSender::send` now only sends events for connected clients.
 - Added a server id option to `VisibilityAttributesPlugin` that can be used if your server is a player.
+- `ServerEventSender::send` now only sends events for connected clients plus the 'server as player'.
 
 ### Added
 
