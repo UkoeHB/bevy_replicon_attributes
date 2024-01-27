@@ -1,5 +1,5 @@
 //local shortcuts
-use crate::*;
+use crate::{*, Visibility};
 
 //third-party shortcuts
 use bevy::prelude::*;
