@@ -1,5 +1,5 @@
 //local shortcuts
-use crate::{*, Visibility};
+use crate::*;
 
 //third-party shortcuts
 use bevy::prelude::*;
@@ -30,7 +30,7 @@ impl<'w, T: Event + Clone> ServerEventSender<'w, T>
     /// If [`VisibilityAttributesPlugin`] was loaded with a server id, then this event will be sent to that id.
     ///
     /// Note that the event will be cloned for each client.
-    pub fn send(&mut self, attributes: &ClientAttributes, event: T, condition: Visibility)
+    pub fn send(&mut self, attributes: &ClientAttributes, event: T, condition: VisibilityCondition)
     {
         self.writer
             .send_batch(

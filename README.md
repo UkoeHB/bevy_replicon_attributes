@@ -160,11 +160,11 @@ Entity visibility is controlled by [`VisibilityConditions`](bevy_replicon_attrib
 
 Entity visibility conditions are evaluated against client attribute lists to determine if entities can be seen by clients.
 
-For convenience we have a [`vis!()`](bevy_replicon_attributes::vis) macro which produces new [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components (simple wrappers around [`VisibilityConditions`](bevy_replicon_attributes::VisibilityCondition)). The [`any!()`](bevy_replicon_attributes::vis)/[`all!()`](bevy_replicon_attributes::vis)/[`none!()`](bevy_replicon_attributes::vis) macros can be used inside the `vis!()` macro in addition to `not()`/`and()`/`or()`.
+For convenience we have a [`vis!()`](bevy_replicon_attributes::vis) macro which produces new [`VisibilityCondition`](bevy_replicon_attributes::VisibilityCondition) components. The [`any!()`](bevy_replicon_attributes::vis)/[`all!()`](bevy_replicon_attributes::vis)/[`none!()`](bevy_replicon_attributes::vis) macros can be used inside the `vis!()` macro in addition to `not()`/`and()`/`or()`.
 
 An empty visibility condition always evaluates to `false`. If you want global visibility for an entity, use the builtin [`Global`](bevy_replicon_attributes::Global) attribute that is given to clients when they connect.
 
-Here is a low-level example how it works. In practice you only need to add [`VisibilityAttributes`](bevy_replicon_attributes::VisibilityAttribute) to clients and [`Visibility`](bevy_replicon_attributes::VisibilityCondition) components to entities. This crate will take care of translating that information into entity visibility within `bevy_replicon`.
+Here is a low-level example how it works. In practice you only need to add [`VisibilityAttributes`](bevy_replicon_attributes::VisibilityAttribute) to clients and [`VisibilityCondition`](bevy_replicon_attributes::VisibilityCondition) components to entities. This crate will take care of translating that information into entity visibility within `bevy_replicon`.
 
 ```rust
 use bevy::prelude::*;

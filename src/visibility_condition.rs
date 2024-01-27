@@ -2,7 +2,7 @@
 use crate::*;
 
 //third-party shortcuts
-use bevy::prelude::{Component, Deref, DerefMut};
+use bevy::prelude::Component;
 use siphasher::sip128::{Hasher128, SipHasher13};
 use smallvec::SmallVec;
 
@@ -114,14 +114,12 @@ pub const SMALL_PACK_LEN: usize = 3;
 /// Use [`Self::evaluate`] to evaluate the condition.
 /// Note that empty conditions always evaluate to `false`.
 ///
-/// See also [`Visibility`].
-///
 /// Examples:
 /// - 1 node: `VisibilityCondition::new(Global)`
 /// - 2 nodes: `VisibilityCondition::new(not(InABush))`
 /// - 3 nodes: `VisibilityCondition::new(and(IsFast, IsSmall)`
 /// - 4 nodes: `VisibilityCondition::new(and(IsSwimming, not(WearingSwimsuit)))`
-#[derive(Debug, Clone, Hash)]
+#[derive(Component, Debug, Clone, Hash)]
 pub enum VisibilityCondition
 {
     Small(SmallVec<[VisibilityConditionNode; SMALL_PACK_LEN]>),
@@ -465,46 +463,6 @@ impl IntoVisibilityCondition for VisibilityCondition
     {
         builder.push_branch(0, self.as_slice());
         builder
-    }
-}
-
-//-------------------------------------------------------------------------------------------------------------------
-
-/// Component that records the visibility for an entity.
-///
-/// An empty visibility condition always evaluates to `true`. This way if an entity has no `Visibility` component it will
-/// be visible to no clients, if it has an empty `Visibility` it will be visible to all clients, and if it has a non-empty
-/// `Visibility` then it will be visible to clients that match the condition.
-///
-/// Semantically, an empty condition matches 'anything', and a non-empty condition is equivalent to `and(ANYTHING, condition)`.
-///
-/// Derefs to a [`VisibilityCondition`].
-#[derive(Component, Debug, Clone, Deref, DerefMut)]
-pub struct Visibility(VisibilityCondition);
-
-impl Visibility
-{
-    /// Makes a new `Visibility` component.
-    pub fn new(condition: impl IntoVisibilityCondition) -> Self
-    {
-        Self(VisibilityCondition::new(condition))
-    }
-}
-
-impl PartialEq for Visibility
-{
-    fn eq(&self, other: &Self) -> bool
-    {
-        self.0 == other.0
-    }
-}
-impl Eq for Visibility {}
-
-impl IntoVisibilityCondition for Visibility
-{
-    fn build(self, builder: VisibilityConditionBuilder) -> VisibilityConditionBuilder
-    {
-        self.0.build(builder)
     }
 }
 

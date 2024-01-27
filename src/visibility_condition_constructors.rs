@@ -445,12 +445,12 @@ where
 
 //-------------------------------------------------------------------------------------------------------------------
 
-/// Syntax sugar for [`Visibility::new`].
+/// Syntax sugar for [`VisibilityCondition::new`].
 #[macro_export] macro_rules! vis
 {
     ($($condition:tt)*) =>
     {
-        Visibility::new(into_condition!($($condition)*))
+        VisibilityCondition::new(into_condition!($($condition)*))
     };
 }
 

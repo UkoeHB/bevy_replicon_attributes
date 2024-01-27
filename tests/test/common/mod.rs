@@ -161,7 +161,7 @@ pub(super) fn remove_attribute<T: VisibilityAttribute>(In((id, attribute)): In<(
 //-------------------------------------------------------------------------------------------------------------------
 
 pub(super) fn send_event<E: Event + Clone>(
-    In((event, vis)): In<(E, Visibility)>,
+    In((event, vis)): In<(E, VisibilityCondition)>,
     attributes: ClientAttributes,
     mut sender: ServerEventSender<E>,
 ){
@@ -182,7 +182,7 @@ pub(super) fn read_event<E: Event + Copy>(mut reader: EventReader<E>) -> Vec<E>
 
 //-------------------------------------------------------------------------------------------------------------------
 
-pub(super) fn evaluate_connected(In(vis): In<Visibility>, attributes: ClientAttributes) -> usize
+pub(super) fn evaluate_connected(In(vis): In<VisibilityCondition>, attributes: ClientAttributes) -> usize
 {
     attributes.evaluate_connected(&vis).count()
 }

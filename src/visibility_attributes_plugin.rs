@@ -1,5 +1,5 @@
 //local shortcuts
-use crate::{*, Visibility};
+use crate::*;
 
 //third-party shortcuts
 use bevy::prelude::*;
@@ -66,7 +66,7 @@ fn repair_clients(
 fn handle_visibility_removals(
     mut visibility_cache : ResMut<VisibilityCache>,
     mut client_cache     : ResMut<ClientCache>,
-    mut removed          : RemovedComponents<Visibility>,
+    mut removed          : RemovedComponents<VisibilityCondition>,
 ){
     for entity in removed.read()
     {
@@ -80,7 +80,7 @@ fn handle_visibility_removals(
 fn handle_visibility_changes(
     mut visibility_cache : ResMut<VisibilityCache>,
     mut client_cache     : ResMut<ClientCache>,
-    changed              : Query<(Entity, &Visibility), Changed<Visibility>>,
+    changed              : Query<(Entity, &VisibilityCondition), Changed<VisibilityCondition>>,
 ){
     for (entity, visibility) in changed.iter()
     {
@@ -117,7 +117,8 @@ impl Plugin for AttributesRepairPlugin
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
-/// System set that collects entity [`Visibility`] changes and translates them into `bevy_replicon` client visibility.
+/// System set that collects entity [`VisibilityCondition`] changes and translates them into `bevy_replicon` client
+/// visibility.
 ///
 /// Runs in `PostUpdate` before `bevy_replicon::prelude::ServerSet::Send`.
 #[derive(SystemSet, Debug, Eq, PartialEq, Clone, Hash)]

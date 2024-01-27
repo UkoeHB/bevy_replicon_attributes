@@ -1165,7 +1165,7 @@ fn vis_removed()
     assert_eq!(client_app.world.entities().len(), 1);
 
     // remove visibility
-    server_app.world.entity_mut(server_entity).remove::<Visibility>();
+    server_app.world.entity_mut(server_entity).remove::<VisibilityCondition>();
 
     server_app.update();
     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -1443,7 +1443,7 @@ fn vis_added_removed_same_tick()
     server_app.world.entity_mut(server_entity).insert(vis!(A));
 
     // remove A
-    server_app.world.entity_mut(server_entity).remove::<Visibility>();
+    server_app.world.entity_mut(server_entity).remove::<VisibilityCondition>();
 
     server_app.update();
     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -1500,7 +1500,7 @@ fn vis_added_removed_added_same_tick()
     server_app.world.entity_mut(server_entity).insert(vis!(A));
 
     // remove A
-    server_app.world.entity_mut(server_entity).remove::<Visibility>();
+    server_app.world.entity_mut(server_entity).remove::<VisibilityCondition>();
 
     // insert A
     server_app.world.entity_mut(server_entity).insert(vis!(A));
