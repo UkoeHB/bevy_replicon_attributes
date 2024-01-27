@@ -2,7 +2,7 @@
 name = "bevy_replicon_attributes"
 description = "Extends bevy_replicon with attribute-based visibility control"
 authors = ["koe <ukoe@protonmail.com>"]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 keywords = ["gamedev", "networking", "ecs", "visibility", "interest-management"]
 license = "MIT OR Apache-2.0"
@@ -30,8 +30,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 bevy           = { version = "0.12", default-features = false }
-#bevy_replicon  = { version = "0.21.1" }
-bevy_replicon  = { git = "https://github.com/UkoeHB/bevy_replicon", rev = "2971100" }
+bevy_replicon  = { version = "0.21.2" }
 siphasher      = { version = "1.0" }
 smallvec       = { version = "1.12" }
 tracing        = { version = "0.1" }
@@ -41,7 +40,6 @@ bevy_replicon_attributes_derive = { path = "bevy_replicon_attributes_derive", ve
 [dev-dependencies]
 bevy_kot_ecs         = { version = "0.11" }
 bevy_renet           = { version = "0.0.10", features = ["serde"] }
-#bevy_replicon_repair = { version = "0.4" }
-bevy_replicon_repair = { git = "https://github.com/UkoeHB/bevy_replicon_repair", rev = "b0ee869" }
+bevy_replicon_repair = { version = "0.4" }
 serde                = { version = "1.0" }
 tracing-subscriber   = { version = "0.3" }
