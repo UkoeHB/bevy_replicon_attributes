@@ -1,7 +1,7 @@
 //module tree
 mod inner;
 
-//proc exports
+//proc shortcuts
 use proc_macro::TokenStream;
 
 //-------------------------------------------------------------------------------------------------------------------

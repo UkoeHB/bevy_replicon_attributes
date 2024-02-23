@@ -4,7 +4,7 @@ use bevy_replicon_attributes::*;
 
 //third-party shortcuts
 use bevy::prelude::*;
-use bevy_kot_ecs::*;
+use bevy_cobweb::prelude::*;
 use bevy_replicon::*;
 use bevy_replicon::prelude::*;
 use serde::{Serialize, Deserialize};

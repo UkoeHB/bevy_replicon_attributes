@@ -3,7 +3,7 @@ use crate::*;
 
 //third-party shortcuts
 use bevy::prelude::*;
-use bevy::utils::{EntityHashMap, EntityHashSet};
+use bevy::ecs::entity::{EntityHashMap, EntityHashSet};
 use bevy_replicon::renet::ClientId;
 use bevy_replicon::prelude::ClientCache;
 
@@ -31,10 +31,10 @@ pub(crate) struct VisibilityCache
     attributes: HashMap<VisibilityAttributeId, HashSet<VisibilityConditionId>>,
 
     /// [ entity : condition ]
-    entities: EntityHashMap<Entity, VisibilityConditionId>,
+    entities: EntityHashMap<VisibilityConditionId>,
 
     /// [ condition id : (condition, [ entity ], [ client ]) ]
-    conditions: HashMap<VisibilityConditionId, (VisibilityCondition, EntityHashSet<Entity>, HashSet<ClientId>)>,
+    conditions: HashMap<VisibilityConditionId, (VisibilityCondition, EntityHashSet, HashSet<ClientId>)>,
 
     /// [ client : [ attribute type id ] ]
     clients: HashMap<ClientId, HashSet<VisibilityAttributeId>>,
@@ -42,7 +42,7 @@ pub(crate) struct VisibilityCache
     /// Condition id sets cached for future use.
     condition_ids_buffer: Vec<HashSet<VisibilityConditionId>>,
     /// Entity sets cached for use by future clients.
-    entities_buffer: Vec<EntityHashSet<Entity>>,
+    entities_buffer: Vec<EntityHashSet>,
     /// Client id sets cached for use by future clients.
     client_ids_buffer: Vec<HashSet<ClientId>>,
     /// Attribute id sets cached for use by future clients.
