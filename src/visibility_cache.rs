@@ -215,6 +215,7 @@ impl VisibilityCache
         self.remove_client(client_id);
 
         // Reinitialize the client that was just removed.
+        // - This calculates visibility using the default visibility attributes (Global and Client).
         self.repair_client(client_cache, client_id);
     }
 

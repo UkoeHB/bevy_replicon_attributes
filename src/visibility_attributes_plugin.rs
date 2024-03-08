@@ -54,6 +54,7 @@ fn repair_clients(
     {
         match event
         {
+            // This will load visibility settings into replicon, which clears visibility when a client disconnects.
             ServerEvent::ClientConnected{ client_id } => visibility_cache.repair_client(&mut client_cache, *client_id),
             ServerEvent::ClientDisconnected{ .. }     => (),
         }
@@ -153,7 +154,7 @@ pub enum ReconnectPolicy
 
 //-------------------------------------------------------------------------------------------------------------------
 
-/// Plugin that sets up visibility handling systems.
+/// Plugin that sets up visibility handling systems in a server using `bevy_replicon`.
 pub struct VisibilityAttributesPlugin
 {
     /// Records the server's `ClientId` if it is a player.
