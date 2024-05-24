@@ -3,8 +3,7 @@ use crate::*;
 
 //third-party shortcuts
 use bevy::prelude::*;
-use bevy_replicon::renet::{ClientId, ServerEvent};
-use bevy_replicon::prelude::{ClientCache, ServerSet, VisibilityPolicy};
+use bevy_replicon::prelude::{ClientId, ServerEvent, ConnectedClients, ServerSet, VisibilityPolicy};
 
 //standard shortcuts
 
@@ -12,12 +11,12 @@ use bevy_replicon::prelude::{ClientCache, ServerSet, VisibilityPolicy};
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
-fn add_server_to_cache(server_id: ClientId) -> impl FnMut(ResMut<'_, VisibilityCache>, ResMut<'_, ClientCache>)
+fn add_server_to_cache(server_id: ClientId) -> impl FnMut(ResMut<'_, VisibilityCache>, ResMut<'_, ConnectedClients>)
 {
     move
     |
         mut visibility_cache : ResMut<VisibilityCache>,
-        mut client_cache     : ResMut<ClientCache>
+        mut client_cache     : ResMut<ConnectedClients>
     |
     {
         visibility_cache.add_server_as_client(&mut client_cache, server_id);
@@ -29,7 +28,7 @@ fn add_server_to_cache(server_id: ClientId) -> impl FnMut(ResMut<'_, VisibilityC
 
 fn reset_clients(
     mut visibility_cache : ResMut<VisibilityCache>,
-    mut client_cache     : ResMut<ClientCache>,
+    mut client_cache     : ResMut<ConnectedClients>,
     mut events           : EventReader<ServerEvent>,
 ){
     for event in events.read()
@@ -47,7 +46,7 @@ fn reset_clients(
 
 fn repair_clients(
     mut visibility_cache : ResMut<VisibilityCache>,
-    mut client_cache     : ResMut<ClientCache>,
+    mut client_cache     : ResMut<ConnectedClients>,
     mut events           : EventReader<ServerEvent>,
 ){
     for event in events.read()
@@ -66,7 +65,7 @@ fn repair_clients(
 
 fn handle_visibility_removals(
     mut visibility_cache : ResMut<VisibilityCache>,
-    mut client_cache     : ResMut<ClientCache>,
+    mut client_cache     : ResMut<ConnectedClients>,
     mut removed          : RemovedComponents<VisibilityCondition>,
 ){
     for entity in removed.read()
@@ -80,7 +79,7 @@ fn handle_visibility_removals(
 
 fn handle_visibility_changes(
     mut visibility_cache : ResMut<VisibilityCache>,
-    mut client_cache     : ResMut<ClientCache>,
+    mut client_cache     : ResMut<ConnectedClients>,
     changed              : Query<(Entity, &VisibilityCondition), Changed<VisibilityCondition>>,
 ){
     for (entity, visibility) in changed.iter()
@@ -172,7 +171,7 @@ impl Plugin for VisibilityAttributesPlugin
         //todo: replace with plugin dependencies in bevy v0.13
         let cache = app
             .world
-            .get_resource::<ClientCache>()
+            .get_resource::<ConnectedClients>()
             .expect("bevy_replicon plugins are required for VisibilityAttributesPlugin");
         if let VisibilityPolicy::Blacklist = cache.visibility_policy()
         {

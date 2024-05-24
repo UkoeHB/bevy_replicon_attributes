@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0]
+
+### Changed
+
+- Update to `bevy_replicon` v0.25.
+
+
 ## [0.3.0]
 
 ### Changed

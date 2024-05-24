@@ -5,9 +5,7 @@ use bevy_replicon_attributes::*;
 //third-party shortcuts
 use bevy::prelude::*;
 use bevy_cobweb::prelude::*;
-use bevy_replicon::*;
-use bevy_replicon::prelude::*;
-use bevy_replicon::renet::ClientId;
+use bevy_replicon::{client::ServerInitTick, prelude::*, test_app::ServerTestAppExt};
 use bevy_replicon_repair::*;
 use serde::{Deserialize, Serialize};
 
@@ -42,7 +40,7 @@ fn blacklist_disallowed()
 {
     App::new().add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 visibility_policy: VisibilityPolicy::Blacklist,
                 ..Default::default()
             }),
@@ -58,7 +56,7 @@ fn whitelist_allowed()
 {
     App::new().add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
             }),
@@ -74,7 +72,7 @@ fn all_disallowed()
 {
     App::new().add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 visibility_policy: VisibilityPolicy::All,
                 ..Default::default()
             }),
@@ -93,7 +91,7 @@ fn normal_replication()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::All,
                 ..Default::default()
@@ -105,15 +103,15 @@ fn normal_replication()
 
     common::connect(&mut server_app, &mut client_app);
 
-    server_app.world.spawn((Replication, ComponentA::default()));
+    server_app.world.spawn((Replicated, ComponentA::default()));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 1);
 }
@@ -137,7 +135,7 @@ fn basic_visibility()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -148,33 +146,33 @@ fn basic_visibility()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // global Visibility = all can see it
-    server_app.world.spawn((Replication, ComponentA, vis!(Global)));
+    server_app.world.spawn((Replicated, ComponentA, vis!(Global)));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 1);
 
     // require B
-    server_app.world.spawn((Replication, ComponentB, vis!(B)));
+    server_app.world.spawn((Replicated, ComponentB, vis!(B)));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     // client doesn't have B yet
     assert!(
         client_app
             .world
-            .query_filtered::<Entity, (With<Replication>, With<ComponentB>)>()
+            .query_filtered::<Entity, (With<Replicated>, With<ComponentB>)>()
             .get_single(&client_app.world)
             .is_err()
     );
@@ -184,13 +182,13 @@ fn basic_visibility()
     syscall(&mut server_app.world, (client_id, B), add_attribute);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     // client has ComponentB now
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentB>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentB>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 2);
 }
@@ -214,7 +212,7 @@ fn connect_after_global_vis_spawn()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -226,24 +224,23 @@ fn connect_after_global_vis_spawn()
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     // global
-    server_app.world.spawn((Replication, ComponentA, vis!(Global)));
+    server_app.world.spawn((Replicated, ComponentA, vis!(Global)));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
 
     // connect after spawn
-    let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let _client_id = common::connect(&mut server_app, &mut client_app);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 1);
 }
@@ -267,7 +264,7 @@ fn connect_after_empty_vis_spawn()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -279,19 +276,18 @@ fn connect_after_empty_vis_spawn()
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     // empty = invisible
-    server_app.world.spawn((Replication, ComponentA, vis!()));
+    server_app.world.spawn((Replicated, ComponentA, vis!()));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
 
     // connect after spawn
-    let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let _client_id = common::connect(&mut server_app, &mut client_app);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -316,7 +312,7 @@ fn connect_after_nonempty_vis_spawn()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -328,19 +324,18 @@ fn connect_after_nonempty_vis_spawn()
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     // spawn for A
-    server_app.world.spawn((Replication, ComponentA, vis!(A)));
+    server_app.world.spawn((Replicated, ComponentA, vis!(A)));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
 
     // connect after spawn
-    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -349,12 +344,12 @@ fn connect_after_nonempty_vis_spawn()
     syscall(&mut server_app.world, (client_id, A), add_attribute);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 1);
 }
@@ -379,7 +374,7 @@ fn mismatched_connections_with_repair()
     for app in [&mut server_app, &mut client_app1, &mut client_app2] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -391,16 +386,19 @@ fn mismatched_connections_with_repair()
     client_app1.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
     client_app2.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
 
-    let (client_id1, server_port) = common::connect(&mut server_app, &mut client_app1);
-    let client_id2 = 2u64;
-    common::reconnect(&mut server_app, &mut client_app2, client_id2, server_port);
+    let client_id1 = common::connect(&mut server_app, &mut client_app1);
+    let client_id2 = common::connect(&mut server_app, &mut client_app2);
+
+    // Spawn extra entity to force replication init message after reconnect.
+    server_app.world.spawn((Replicated, vis!(Client(client_id1))));
 
     // add attribute
     syscall(&mut server_app.world, (client_id1, A), add_attribute);
     syscall(&mut server_app.world, (client_id2, A), add_attribute);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app1);
+    server_app.exchange_with_client(&mut client_app2);
     client_app1.update();
     client_app2.update();
 
@@ -408,26 +406,19 @@ fn mismatched_connections_with_repair()
     assert_eq!(syscall(&mut server_app.world, vis!(A), evaluate_connected), 2);
 
     // disconnect
-    client_app1.world.resource_mut::<RenetClient>().disconnect();
-    client_app1.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
-    server_app.update();
-    server_app.update();
-    assert!(!server_app.world.resource::<RenetServer>().is_connected(ClientId::from_raw(client_id1)));
+    common::disconnect(&mut server_app, &mut client_app1);
 
     // invoke evaluate_connected
     assert_eq!(syscall(&mut server_app.world, vis!(A), evaluate_connected), 1);
 
     // reconnect
-    common::reconnect(&mut server_app, &mut client_app1, client_id1, server_port);
-    let _ = client_app1.world.resource_mut::<RepliconTick>().into_inner().increment();  //trigger repair
-    client_app1.update();
-    assert_eq!(*client_app1.world.resource::<State<ClientRepairState>>(), ClientRepairState::Done);
-
+    common::reconnect(&mut server_app, &mut client_app1, client_id1);
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app1);
+    server_app.exchange_with_client(&mut client_app2);
     client_app1.update();
     client_app2.update();
+    assert_eq!(*client_app1.world.resource::<State<ClientRepairState>>(), ClientRepairState::Done);
 
     // invoke evaluate_connected
     assert_eq!(syscall(&mut server_app.world, vis!(A), evaluate_connected), 2);
@@ -452,7 +443,7 @@ fn reconnect_and_lose_visibility_reset()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -464,44 +455,39 @@ fn reconnect_and_lose_visibility_reset()
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
     client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
 
-    let (client_id, server_port) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // spawn for A
-    server_app.world.spawn((Replication, ComponentA, vis!(A)));
+    // - include extra entity to force replication init message after reconnect
+    server_app.world.spawn((Replicated, vis!(Client(client_id))));
+    server_app.world.spawn((Replicated, ComponentA, vis!(A)));
 
     // add attribute
     syscall(&mut server_app.world, (client_id, A), add_attribute);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
-    assert_eq!(client_app.world.entities().len(), 1);
+    assert_eq!(client_app.world.entities().len(), 2);
 
     // disconnect
-    client_app.world.resource_mut::<RenetClient>().disconnect();
-    client_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
-    server_app.update();
-    assert!(!server_app.world.resource::<RenetServer>().is_connected(ClientId::from_raw(client_id)));
+    common::disconnect(&mut server_app, &mut client_app);
 
     // don't remove visibility (client is reset)
 
     // reconnect
-    common::reconnect(&mut server_app, &mut client_app, client_id, server_port);
-    let _ = client_app.world.resource_mut::<RepliconTick>().into_inner().increment();  //trigger repair
+    common::reconnect(&mut server_app, &mut client_app, client_id);
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
     assert_eq!(*client_app.world.resource::<State<ClientRepairState>>(), ClientRepairState::Done);
 
-    server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
-    client_app.update();
-
-    assert_eq!(client_app.world.entities().len(), 0);
+    assert_eq!(client_app.world.entities().len(), 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -523,7 +509,7 @@ fn reconnect_and_lose_visibility_repair()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -535,48 +521,42 @@ fn reconnect_and_lose_visibility_repair()
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Repair });
     client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
 
-    let (client_id, server_port) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // spawn for A
-    server_app.world.spawn((Replication, ComponentA, vis!(A)));
+    // - include extra entity to force replication init message after reconnect
+    server_app.world.spawn((Replicated, vis!(Client(client_id))));
+    server_app.world.spawn((Replicated, ComponentA, vis!(A)));
 
     // add attribute
     syscall(&mut server_app.world, (client_id, A), add_attribute);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
-    assert_eq!(client_app.world.entities().len(), 1);
+    assert_eq!(client_app.world.entities().len(), 2);
 
     // disconnect
-    client_app.world.resource_mut::<RenetClient>().disconnect();
-    client_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
-    server_app.update();
-    assert!(!server_app.world.resource::<RenetServer>().is_connected(ClientId::from_raw(client_id)));
+    common::disconnect(&mut server_app, &mut client_app);
 
     // remove visibility
     syscall(&mut server_app.world, (client_id, A), remove_attribute);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
 
     // reconnect
-    common::reconnect(&mut server_app, &mut client_app, client_id, server_port);
-    let _ = client_app.world.resource_mut::<RepliconTick>().into_inner().increment();  //trigger repair
+    common::reconnect(&mut server_app, &mut client_app, client_id);
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
     assert_eq!(*client_app.world.resource::<State<ClientRepairState>>(), ClientRepairState::Done);
 
-    server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
-    client_app.update();
-
-    assert_eq!(client_app.world.entities().len(), 0);
+    assert_eq!(client_app.world.entities().len(), 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -598,7 +578,7 @@ fn reconnect_and_vis_accuracy_reset()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -610,43 +590,38 @@ fn reconnect_and_vis_accuracy_reset()
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
     client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
 
-    let (client_id, server_port) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     // add attribute
     syscall(&mut server_app.world, (client_id, B), add_attribute);
 
     // disconnect
-    client_app.world.resource_mut::<RenetClient>().disconnect();
-    client_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
-    server_app.update();
-    assert!(!server_app.world.resource::<RenetServer>().is_connected(ClientId::from_raw(client_id)));
+    common::disconnect(&mut server_app, &mut client_app);
 
     // spawns
-    server_app.world.spawn((Replication, ComponentA, vis!(Global)));
-    server_app.world.spawn((Replication, ComponentB, vis!(B)));
+    server_app.world.spawn((Replicated, ComponentA, vis!(Global)));
+    server_app.world.spawn((Replicated, ComponentB, vis!(B)));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
 
     // reconnect
-    common::reconnect(&mut server_app, &mut client_app, client_id, server_port);
-    let _ = client_app.world.resource_mut::<RepliconTick>().into_inner().increment();  //trigger repair
+    common::reconnect(&mut server_app, &mut client_app, client_id);
+    let _ = client_app.world.resource_mut::<ServerInitTick>().into_inner();  //trigger repair
     client_app.update();
     assert_eq!(*client_app.world.resource::<State<ClientRepairState>>(), ClientRepairState::Done);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     // did not receive component B, the attribute was lost on disconnect
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 1);
 }
@@ -670,7 +645,7 @@ fn reconnect_and_vis_accuracy_repair()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -682,47 +657,42 @@ fn reconnect_and_vis_accuracy_repair()
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Repair });
     client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
 
-    let (client_id, server_port) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     // add attribute
     syscall(&mut server_app.world, (client_id, B), add_attribute);
 
     // disconnect
-    client_app.world.resource_mut::<RenetClient>().disconnect();
-    client_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
-    server_app.update();
-    assert!(!server_app.world.resource::<RenetServer>().is_connected(ClientId::from_raw(client_id)));
+    common::disconnect(&mut server_app, &mut client_app);
 
     // spawns
-    server_app.world.spawn((Replication, ComponentA, vis!(Global)));
-    server_app.world.spawn((Replication, ComponentB, vis!(B)));
+    server_app.world.spawn((Replicated, ComponentA, vis!(Global)));
+    server_app.world.spawn((Replicated, ComponentB, vis!(B)));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
 
     // reconnect
-    common::reconnect(&mut server_app, &mut client_app, client_id, server_port);
-    let _ = client_app.world.resource_mut::<RepliconTick>().into_inner().increment();  //trigger repair
+    common::reconnect(&mut server_app, &mut client_app, client_id);
+    let _ = client_app.world.resource_mut::<ServerInitTick>().into_inner();  //trigger repair
     client_app.update();
     assert_eq!(*client_app.world.resource::<State<ClientRepairState>>(), ClientRepairState::Done);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     // received component B, the attribute was retained
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentB>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentB>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 2);
 }
@@ -746,7 +716,7 @@ fn remove_attribute_from_client()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -757,21 +727,21 @@ fn remove_attribute_from_client()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // spawn for A
-    server_app.world.spawn((Replication, ComponentA, vis!(A)));
+    server_app.world.spawn((Replicated, ComponentA, vis!(A)));
 
     // add attribute
     syscall(&mut server_app.world, (client_id, A), add_attribute);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 1);
 
@@ -779,7 +749,7 @@ fn remove_attribute_from_client()
     syscall(&mut server_app.world, (client_id, A), remove_attribute);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -804,7 +774,7 @@ fn add_remove_attribute_same_tick()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -815,10 +785,10 @@ fn add_remove_attribute_same_tick()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // spawn for A
-    server_app.world.spawn((Replication, ComponentA, vis!(A)));
+    server_app.world.spawn((Replicated, ComponentA, vis!(A)));
 
     // add attribute
     syscall(&mut server_app.world, (client_id, A), add_attribute);
@@ -827,7 +797,7 @@ fn add_remove_attribute_same_tick()
     syscall(&mut server_app.world, (client_id, A), remove_attribute);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -852,7 +822,7 @@ fn add_remove_add_attribute_same_tick()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -863,10 +833,10 @@ fn add_remove_add_attribute_same_tick()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // spawn for A
-    server_app.world.spawn((Replication, ComponentA, vis!(A)));
+    server_app.world.spawn((Replicated, ComponentA, vis!(A)));
 
     // add attribute
     syscall(&mut server_app.world, (client_id, A), add_attribute);
@@ -878,12 +848,12 @@ fn add_remove_add_attribute_same_tick()
     syscall(&mut server_app.world, (client_id, A), add_attribute);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 1);
 }
@@ -908,7 +878,7 @@ fn multiple_clients_different_entities()
     for app in [&mut server_app, &mut client_app1, &mut client_app2] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -919,32 +889,32 @@ fn multiple_clients_different_entities()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id1, server_port) = common::connect(&mut server_app, &mut client_app1);
-    let client_id2 = 2u64;
-    common::reconnect(&mut server_app, &mut client_app2, client_id2, server_port);
+    let client_id1 = common::connect(&mut server_app, &mut client_app1);
+    let client_id2 = common::connect(&mut server_app, &mut client_app2);
 
     // spawns
-    server_app.world.spawn((Replication, ComponentA, vis!(A)));
-    server_app.world.spawn((Replication, ComponentB, vis!(B)));
+    server_app.world.spawn((Replicated, ComponentA, vis!(A)));
+    server_app.world.spawn((Replicated, ComponentB, vis!(B)));
 
     // add attributes
     syscall(&mut server_app.world, (client_id1, A), add_attribute);
     syscall(&mut server_app.world, (client_id2, B), add_attribute);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app1);
+    server_app.exchange_with_client(&mut client_app2);
     client_app1.update();
     client_app2.update();
 
     let _client_entity = client_app1
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app1.world);
     assert_eq!(client_app1.world.entities().len(), 1);
 
     let _client_entity = client_app2
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentB>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentB>)>()
         .single(&client_app2.world);
     assert_eq!(client_app2.world.entities().len(), 1);
 }
@@ -968,7 +938,7 @@ fn vis_added_post_spawn()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -979,16 +949,16 @@ fn vis_added_post_spawn()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
     syscall(&mut server_app.world, (client_id, A), add_attribute);
 
     // spawn for A
-    let server_entity = server_app.world.spawn((Replication, ComponentA)).id();
+    let server_entity = server_app.world.spawn((Replicated, ComponentA)).id();
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -997,12 +967,12 @@ fn vis_added_post_spawn()
     server_app.world.entity_mut(server_entity).insert(vis!(A));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 1);
 }
@@ -1026,7 +996,7 @@ fn vis_added_multiple_entities_same_tick()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -1037,22 +1007,22 @@ fn vis_added_multiple_entities_same_tick()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
     syscall(&mut server_app.world, (client_id, A), add_attribute);
 
     // spawns
-    server_app.world.spawn((Replication, ComponentA, vis!(A)));
-    server_app.world.spawn((Replication, ComponentA, vis!(A)));
+    server_app.world.spawn((Replicated, ComponentA, vis!(A)));
+    server_app.world.spawn((Replicated, ComponentA, vis!(A)));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let num = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .iter_mut(&mut client_app.world)
         .len();
     assert_eq!(num, 2);
@@ -1078,7 +1048,7 @@ fn vis_added_multiple_entities_different_ticks()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -1089,27 +1059,27 @@ fn vis_added_multiple_entities_different_ticks()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
     syscall(&mut server_app.world, (client_id, A), add_attribute);
 
     // spawns
-    server_app.world.spawn((Replication, ComponentA, vis!(A)));
+    server_app.world.spawn((Replicated, ComponentA, vis!(A)));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    server_app.world.spawn((Replication, ComponentA, vis!(A)));
+    server_app.world.spawn((Replicated, ComponentA, vis!(A)));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let num = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .iter_mut(&mut client_app.world)
         .len();
     assert_eq!(num, 2);
@@ -1135,7 +1105,7 @@ fn vis_removed()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -1146,21 +1116,21 @@ fn vis_removed()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
     syscall(&mut server_app.world, (client_id, A), add_attribute);
 
     // spawn
-    let server_entity = server_app.world.spawn((Replication, ComponentA, vis!(A))).id();
+    let server_entity = server_app.world.spawn((Replicated, ComponentA, vis!(A))).id();
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 1);
 
@@ -1168,7 +1138,7 @@ fn vis_removed()
     server_app.world.entity_mut(server_entity).remove::<VisibilityCondition>();
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -1193,7 +1163,7 @@ fn vis_changes_to_empty()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -1204,13 +1174,13 @@ fn vis_changes_to_empty()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let _client_id = common::connect(&mut server_app, &mut client_app);
 
     // spawn
-    let server_entity = server_app.world.spawn((Replication, ComponentA, vis!(A))).id();
+    let server_entity = server_app.world.spawn((Replicated, ComponentA, vis!(A))).id();
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -1219,7 +1189,7 @@ fn vis_changes_to_empty()
     server_app.world.entity_mut(server_entity).insert(vis!());
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -1244,7 +1214,7 @@ fn vis_changes_to_global()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -1255,13 +1225,13 @@ fn vis_changes_to_global()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let _client_id = common::connect(&mut server_app, &mut client_app);
 
     // spawn
-    let server_entity = server_app.world.spawn((Replication, ComponentA, vis!(A))).id();
+    let server_entity = server_app.world.spawn((Replicated, ComponentA, vis!(A))).id();
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -1270,12 +1240,12 @@ fn vis_changes_to_global()
     server_app.world.entity_mut(server_entity).insert(vis!(Global));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 1);
 }
@@ -1299,7 +1269,7 @@ fn vis_changes()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -1310,16 +1280,16 @@ fn vis_changes()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
     syscall(&mut server_app.world, (client_id, B), add_attribute);
 
     // spawn
-    let server_entity = server_app.world.spawn((Replication, ComponentA, vis!(A))).id();
+    let server_entity = server_app.world.spawn((Replicated, ComponentA, vis!(A))).id();
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -1328,12 +1298,12 @@ fn vis_changes()
     server_app.world.entity_mut(server_entity).insert(vis!(B));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 1);
 }
@@ -1357,7 +1327,7 @@ fn vis_changes_twice_same_tick()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -1368,16 +1338,16 @@ fn vis_changes_twice_same_tick()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
     syscall(&mut server_app.world, (client_id, B), add_attribute);
 
     // spawn
-    let server_entity = server_app.world.spawn((Replication, ComponentA, vis!(A))).id();
+    let server_entity = server_app.world.spawn((Replicated, ComponentA, vis!(A))).id();
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -1389,7 +1359,7 @@ fn vis_changes_twice_same_tick()
     server_app.world.entity_mut(server_entity).insert(vis!(A));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -1414,7 +1384,7 @@ fn vis_added_removed_same_tick()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -1425,16 +1395,16 @@ fn vis_added_removed_same_tick()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
     syscall(&mut server_app.world, (client_id, A), add_attribute);
 
     // spawn
-    let server_entity = server_app.world.spawn((Replication, ComponentA)).id();
+    let server_entity = server_app.world.spawn((Replicated, ComponentA)).id();
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -1446,7 +1416,7 @@ fn vis_added_removed_same_tick()
     server_app.world.entity_mut(server_entity).remove::<VisibilityCondition>();
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -1471,7 +1441,7 @@ fn vis_added_removed_added_same_tick()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -1482,16 +1452,16 @@ fn vis_added_removed_added_same_tick()
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
     syscall(&mut server_app.world, (client_id, A), add_attribute);
 
     // spawn
-    let server_entity = server_app.world.spawn((Replication, ComponentA)).id();
+    let server_entity = server_app.world.spawn((Replicated, ComponentA)).id();
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(client_app.world.entities().len(), 0);
@@ -1506,12 +1476,12 @@ fn vis_added_removed_added_same_tick()
     server_app.world.entity_mut(server_entity).insert(vis!(A));
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let _client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<ComponentA>)>()
+        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world);
     assert_eq!(client_app.world.entities().len(), 1);
 }

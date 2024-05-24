@@ -4,8 +4,7 @@ use crate::*;
 //third-party shortcuts
 use bevy::prelude::*;
 use bevy::ecs::system::SystemParam;
-use bevy_replicon::renet::ClientId;
-use bevy_replicon::prelude::{ClientCache, ClientState};
+use bevy_replicon::prelude::{ConnectedClient, ConnectedClients, ClientId};
 
 //standard shortcuts
 use std::collections::HashSet;
@@ -30,7 +29,7 @@ fn kill_player(In(client_id): In<ClientId>, mut attributes: ClientAttributes)
 pub struct ClientAttributes<'w>
 {
     cache: ResMut<'w, VisibilityCache>,
-    client_info: ResMut<'w, ClientCache>,
+    client_info: ResMut<'w, ConnectedClients>,
 }
 
 impl<'w> ClientAttributes<'w>
@@ -73,7 +72,7 @@ impl<'w> ClientAttributes<'w>
     pub fn evaluate_connected<'s, 'a: 's>(
         &'s self,
         condition: &'a VisibilityCondition
-    ) -> impl Iterator<Item = &ClientState> + '_
+    ) -> impl Iterator<Item = &ConnectedClient> + '_
     {
         self.client_info
             .iter()

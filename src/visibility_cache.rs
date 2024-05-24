@@ -4,8 +4,7 @@ use crate::*;
 //third-party shortcuts
 use bevy::prelude::*;
 use bevy::ecs::entity::{EntityHashMap, EntityHashSet};
-use bevy_replicon::renet::ClientId;
-use bevy_replicon::prelude::ClientCache;
+use bevy_replicon::prelude::{ConnectedClients, ClientId};
 
 //standard shortcuts
 use std::collections::hash_map::Entry;
@@ -73,7 +72,7 @@ impl VisibilityCache
     /// Adds a special 'server player' that is always considered connected.
     pub(crate) fn add_server_as_client(
         &mut self,
-        client_cache : &mut ClientCache,
+        client_cache : &mut ConnectedClients,
         server_id    : ClientId
     ){
         self.reset_client(client_cache, server_id);
@@ -89,7 +88,7 @@ impl VisibilityCache
     /// Adds an attribute to a client.
     pub(crate) fn add_client_attribute(
         &mut self,
-        client_cache : &mut ClientCache,
+        client_cache : &mut ConnectedClients,
         client_id    : ClientId,
         attribute    : VisibilityAttributeId,
     ){
@@ -99,7 +98,7 @@ impl VisibilityCache
     /// Removes an attribute from a client.
     pub(crate) fn remove_client_attribute(
         &mut self,
-        client_cache : &mut ClientCache,
+        client_cache : &mut ConnectedClients,
         client_id    : ClientId,
         attribute    : VisibilityAttributeId,
     ){
@@ -136,10 +135,10 @@ impl VisibilityCache
         self.attribute_ids_buffer.push(attribute_ids);
     }
 
-    /// Repairs a client by refreshing visibility of all entities in the [`ClientCache`].
+    /// Repairs a client by refreshing visibility of all entities in the [`ConnectedClients`].
     ///
     /// If this is a new client, the builtin [`Global`] and [`Client`] attributes will be inserted.
-    pub(crate) fn repair_client(&mut self, client_cache: &mut ClientCache, client_id: ClientId)
+    pub(crate) fn repair_client(&mut self, client_cache: &mut ConnectedClients, client_id: ClientId)
     {
         tracing::debug!(?client_id, "repairing client");
 
@@ -206,7 +205,7 @@ impl VisibilityCache
     /// The client will start with the builtin [`Global`] and [`Client`] attributes.
     pub(crate) fn reset_client(
         &mut self,
-        client_cache : &mut ClientCache,
+        client_cache : &mut ConnectedClients,
         client_id    : ClientId,
     ){
         tracing::debug!(?client_id, "resetting client");
@@ -222,7 +221,7 @@ impl VisibilityCache
     /// Updates an entity's visibility condition.
     pub(crate) fn add_entity_condition(
         &mut self,
-        client_cache : &mut ClientCache,
+        client_cache : &mut ConnectedClients,
         entity       : Entity,
         condition    : &VisibilityCondition,
     ){
@@ -306,10 +305,10 @@ impl VisibilityCache
 
     /// Removes an entity that no longer has a replication condition.
     ///
-    /// Note: We update the `ClientCache` in case [`Visibility`] was removed from an entity that still has
+    /// Note: We update the `ConnectedClients` in case [`Visibility`] was removed from an entity that still has
     ///       the `Replication` component.
-    //todo: updating `ClientCache` is redundant work
-    pub(crate) fn remove_entity(&mut self, client_cache: &mut ClientCache, entity: Entity)
+    //todo: updating `ConnectedClients` is redundant work
+    pub(crate) fn remove_entity(&mut self, client_cache: &mut ConnectedClients, entity: Entity)
     {
         self.remove_entity_with_check(client_cache, entity, None);
     }
@@ -365,7 +364,7 @@ impl VisibilityCache
     /// Updates a client's visibility relative to a specific attribute.
     fn update_client_visibility(
         &mut self, 
-        client_cache : &mut ClientCache,
+        client_cache : &mut ConnectedClients,
         client_id    : ClientId,
         attribute    : VisibilityAttributeId,
         update       : UpdateType,
@@ -432,7 +431,7 @@ impl VisibilityCache
     /// Returns `false` if the check failed.
     fn remove_entity_with_check(
         &mut self,
-        client_cache     : &mut ClientCache,
+        client_cache     : &mut ConnectedClients,
         entity          : Entity,
         check_condition : Option<VisibilityConditionId>,
     ) -> bool

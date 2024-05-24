@@ -7,7 +7,7 @@ Extends [bevy_replicon](https://github.com/lifescapegame/bevy_replicon) with att
 
 ```rust
 use bevy::prelude::*;
-use bevy_replicon::prelude::{ClientId, Replication};
+use bevy_replicon::prelude::{ClientId, Replicated};
 use bevy_replicon_attributes::prelude::*;
 
 #[derive(Component)]
@@ -36,7 +36,7 @@ fn spawn_bats(
     for _ in events.read()
     {
         // Entity
-        commands.spawn((Bat, Replication, vis!(HasNightVision)));
+        commands.spawn((Bat, Replicated, vis!(HasNightVision)));
 
         // Server event
         sender.send(&attributes, BatAlert, vis!(all!(HasNightVision, IsAwake, HatesBats)));
@@ -69,7 +69,7 @@ use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 
 app.add_plugins(bevy::time::TimePlugin)  //required by bevy_renet
-    .add_plugins(ReplicationPlugins
+    .add_plugins(RepliconPlugins
         .build()
         .disable::<ClientPlugin>()
         .set(ServerPlugin{
@@ -122,7 +122,7 @@ Client attributes are used when evaluating entity [`VisibilityConditions`](bevy_
 
 ```rust
 use bevy::prelude::*;
-use bevy_renet::renet::ServerEvent;
+use bevy_replicon::prelude::ServerEvent;
 use bevy_replicon_attributes::prelude::*;
 
 #[derive(VisibilityAttribute, Default, PartialEq)]
@@ -187,7 +187,7 @@ fn entity_demo(
     assert!(location.evaluate(|a| client_attributes.contains(&a)));
 
     // Spawn entity.
-    commands.spawn((Replication, location));
+    commands.spawn((Replicated, location));
 }
 ```
 
@@ -252,4 +252,5 @@ fn send_event(mut sender: ServerEventSender<E>, attributes: ClientAttributes)
 
 | `bevy_replicon` | `bevy_replicon_attributes` |
 |-------|----------------|
-| 0.21  | 0.1 - master |
+| 0.25  | 0.4 - master   |
+| 0.21  | 0.1 - 0.3      |

@@ -2,7 +2,7 @@
 use crate::*;
 
 //third-party shortcuts
-use bevy_replicon::renet::ClientId;
+use bevy_replicon::prelude::ClientId;
 
 //standard shortcuts
 
@@ -27,7 +27,7 @@ impl From<u64> for Client
 {
     fn from(id: u64) -> Self
     {
-        Client(ClientId::from_raw(id))
+        Client(ClientId::new(id))
     }
 }
 
@@ -35,7 +35,7 @@ impl VisibilityAttribute for Client
 {
     fn inner_attribute_id(&self) -> u64
     {
-        self.0.raw()
+        self.0.get()
     }
 }
 

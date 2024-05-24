@@ -5,8 +5,7 @@ use bevy_replicon_attributes::*;
 //third-party shortcuts
 use bevy::prelude::*;
 use bevy_cobweb::prelude::*;
-use bevy_replicon::*;
-use bevy_replicon::prelude::*;
+use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
 use serde::{Serialize, Deserialize};
 
 //standard shortcuts
@@ -47,23 +46,23 @@ fn event_to_empty_visible_to_none()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(EventType::Ordered);
+        .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let _client_id = common::connect(&mut server_app, &mut client_app);
 
     // send event to empty
     syscall(&mut server_app.world, (E, vis!()), send_event);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(syscall(&mut client_app.world, (), read_event::<E>).len(), 0);
@@ -88,23 +87,23 @@ fn event_to_global_visible_to_all()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(EventType::Ordered);
+        .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let _client_id = common::connect(&mut server_app, &mut client_app);
 
     // send event to empty
     syscall(&mut server_app.world, (E, vis!(Global)), send_event);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(syscall(&mut client_app.world, (), read_event::<E>).len(), 1);
@@ -130,19 +129,18 @@ fn event_to_condition_visible_to_matching()
     for app in [&mut server_app, &mut client_app1, &mut client_app2] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(EventType::Ordered);
+        .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id1, server_port) = common::connect(&mut server_app, &mut client_app1);
-    let client_id2 = 2u64;
-    common::reconnect(&mut server_app, &mut client_app2, client_id2, server_port);
+    let client_id1 = common::connect(&mut server_app, &mut client_app1);
+    let client_id2 = common::connect(&mut server_app, &mut client_app2);
 
     // add attributes
     syscall(&mut server_app.world, (client_id1, A), add_attribute);
@@ -152,7 +150,8 @@ fn event_to_condition_visible_to_matching()
     syscall(&mut server_app.world, (E, vis!(A)), send_event);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app1);
+    server_app.exchange_with_client(&mut client_app2);
     client_app1.update();
     client_app2.update();
 
@@ -180,25 +179,25 @@ fn event_to_clients_visible_to_targets()
     for app in [&mut server_app, &mut client_app1, &mut client_app2] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(EventType::Ordered);
+        .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id1, server_port) = common::connect(&mut server_app, &mut client_app1);
-    let client_id2 = 2u64;
-    common::reconnect(&mut server_app, &mut client_app2, client_id2, server_port);
+    let client_id1 = common::connect(&mut server_app, &mut client_app1);
+    let _client_id2 = common::connect(&mut server_app, &mut client_app2);
 
     // send event to client
-    syscall(&mut server_app.world, (E, vis!(Client::from(client_id1))), send_event);
+    syscall(&mut server_app.world, (E, vis!(Client(client_id1))), send_event);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app1);
+    server_app.exchange_with_client(&mut client_app2);
     client_app1.update();
     client_app2.update();
 
@@ -226,19 +225,18 @@ fn event_before_attributes_not_seen()
     for app in [&mut server_app, &mut client_app1, &mut client_app2] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(EventType::Ordered);
+        .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id1, server_port) = common::connect(&mut server_app, &mut client_app1);
-    let client_id2 = 2u64;
-    common::reconnect(&mut server_app, &mut client_app2, client_id2, server_port);
+    let client_id1 = common::connect(&mut server_app, &mut client_app1);
+    let client_id2 = common::connect(&mut server_app, &mut client_app2);
 
     // send event to A
     syscall(&mut server_app.world, (E, vis!(A)), send_event);
@@ -248,7 +246,8 @@ fn event_before_attributes_not_seen()
     syscall(&mut server_app.world, (client_id2, B), add_attribute);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app1);
+    server_app.exchange_with_client(&mut client_app2);
     client_app1.update();
     client_app2.update();
 
@@ -275,23 +274,23 @@ fn event_to_global_not_visible_to_unconnected()
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(EventType::Ordered);
+        .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
     // send event to empty
     syscall(&mut server_app.world, (E, vis!(Global)), send_event);
 
-    let (_client_id, _) = common::connect(&mut server_app, &mut client_app);
+    let _client_id = common::connect(&mut server_app, &mut client_app);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert_eq!(syscall(&mut client_app.world, (), read_event::<E>).len(), 0);
@@ -317,19 +316,18 @@ fn multiple_events_same_tick_seen()
     for app in [&mut server_app, &mut client_app1, &mut client_app2] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(EventType::Ordered);
+        .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
 
-    let (client_id1, server_port) = common::connect(&mut server_app, &mut client_app1);
-    let client_id2 = 2u64;
-    common::reconnect(&mut server_app, &mut client_app2, client_id2, server_port);
+    let client_id1 = common::connect(&mut server_app, &mut client_app1);
+    let client_id2 = common::connect(&mut server_app, &mut client_app2);
 
     // add attributes
     syscall(&mut server_app.world, (client_id1, A), add_attribute);
@@ -340,7 +338,8 @@ fn multiple_events_same_tick_seen()
     syscall(&mut server_app.world, (E, vis!(A)), send_event);
 
     server_app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    server_app.exchange_with_client(&mut client_app1);
+    server_app.exchange_with_client(&mut client_app2);
     client_app1.update();
     client_app2.update();
 
@@ -366,15 +365,18 @@ fn event_to_server_visible_to_server()
     for app in [&mut server_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(EventType::Ordered);
+        .add_server_event::<E>(ChannelKind::Ordered);
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: Some(SERVER_ID), reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{
+        server_id: Some(ClientId::SERVER),
+        reconnect_policy: ReconnectPolicy::Reset
+    });
 
     // initialize the server app
     server_app.update();
@@ -406,15 +408,18 @@ fn event_not_visible_to_server()
     for app in [&mut server_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(bevy_replicon::prelude::ServerPlugin {
+            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(EventType::Ordered);
+        .add_server_event::<E>(ChannelKind::Ordered);
     }
-    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: Some(SERVER_ID), reconnect_policy: ReconnectPolicy::Reset });
+    server_app.add_plugins(VisibilityAttributesPlugin{
+        server_id: Some(ClientId::SERVER),
+        reconnect_policy: ReconnectPolicy::Reset
+    });
 
     // initialize the server app
     server_app.update();
