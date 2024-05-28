@@ -30,7 +30,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 bevy           = { version = "0.13", default-features = false }
-bevy_replicon  = { version = "0.25" }
+bevy_replicon  = { version = "0.26" }
 siphasher      = { version = "1.0" }
 smallvec       = { version = "1.12" }
 tracing        = { version = "0.1" }
@@ -39,6 +39,6 @@ bevy_replicon_attributes_derive = { path = "bevy_replicon_attributes_derive", ve
 
 [dev-dependencies]
 bevy_cobweb          = { version = "0.6" }
-bevy_replicon_repair = { version = "0.7" }
+bevy_replicon_repair = { version = "0.8" }
 serde                = { version = "1.0" }
 tracing-subscriber   = { version = "0.3" }
