@@ -170,7 +170,7 @@ impl Plugin for VisibilityAttributesPlugin
     {
         //todo: replace with plugin dependencies in bevy v0.13
         let cache = app
-            .world
+            .world()
             .get_resource::<ConnectedClients>()
             .expect("bevy_replicon plugins are required for VisibilityAttributesPlugin");
         if let VisibilityPolicy::Blacklist = cache.visibility_policy()
