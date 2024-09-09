@@ -2,7 +2,7 @@
 name = "bevy_replicon_attributes"
 description = "Extends bevy_replicon with attribute-based visibility control"
 authors = ["koe <ukoe@protonmail.com>"]
-version = "0.7.2"
+version = "0.7.3"
 edition = "2021"
 keywords = ["gamedev", "networking", "ecs", "visibility", "interest-management"]
 license = "MIT OR Apache-2.0"
