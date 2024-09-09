@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.3]
+
+### Fixed
+
+- Fix spurious error message in visibility cache when setting up server-clients.
+
+
 ## [0.7.2]
 
 ### Fixed

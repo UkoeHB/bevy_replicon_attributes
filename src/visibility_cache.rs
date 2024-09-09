@@ -75,8 +75,8 @@ impl VisibilityCache
         client_cache : &mut ReplicatedClients,
         server_id    : ClientId
     ){
-        self.reset_client(client_cache, server_id);
         self.server_id = Some(server_id);
+        self.reset_client(client_cache, server_id);
     }
 
     /// Gets the server player's client id.
