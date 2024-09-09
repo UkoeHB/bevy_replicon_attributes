@@ -151,6 +151,10 @@ impl VisibilityCache
         client_attributes.insert(Global.attribute_id());
         client_attributes.insert(Client(client_id).attribute_id());
 
+        // Skip repair for server-clients, who we assume only need to be set up once.
+        // - Also note that server-clients don't have entries in ReplicatedClients.
+        if Some(client_id) == self.server_id { return; }
+
         // Get client visibility settings.
         let Some(visibility_settings) = client_cache.get_client_mut(client_id).map(|c| c.visibility_mut())
         else { tracing::error!(?client_id, "repairing client is missing from client cache"); return; };
@@ -276,14 +280,16 @@ impl VisibilityCache
             // Establish initial visibility for the new condition.
             true =>
             {
-                for (client_id, attributes) in self.clients.iter()
+                // - We ignore server-clients who can see all entities automatically.
+                for (client_id, attributes) in self
+                    .clients
+                    .iter()
+                    .filter(|(id, _)| Some(**id) != self.server_id)
                 {
-                    if !condition.evaluate(|a| attributes.contains(&a)) { continue }
-
-                    clients.insert(*client_id);
-
-                    tracing::trace!(?client_id, ?entity, ?condition, "visibility <true> new condition");
                     let Some(client) = client_cache.get_client_mut(*client_id) else { continue; };
+                    if !condition.evaluate(|a| attributes.contains(&a)) { continue }
+                    tracing::trace!(?client_id, ?entity, ?condition, "visibility <true> new condition");
+                    clients.insert(*client_id);
                     client.visibility_mut().set_visibility(entity, true);
                 }
             }
@@ -293,10 +299,11 @@ impl VisibilityCache
             //   this brute-force approach and trying to only modify clients that don't have visibility of both conditions.
             false =>
             {
+                // - Skip disconnected clients and server-clients.
                 for client_id in clients.iter()
                 {
-                    tracing::trace!(?client_id, ?entity, ?condition, "visibility <true>");
                     let Some(client) = client_cache.get_client_mut(*client_id) else { continue; };
+                    tracing::trace!(?client_id, ?entity, ?condition, "visibility <true>");
                     client.visibility_mut().set_visibility(entity, true);
                 }
             }
@@ -415,9 +422,9 @@ impl VisibilityCache
             }
 
             // Set visibility for entities attached to this condition.
-            // - Ignore disconnected clients.
-            tracing::trace!(?client_id, ?entities, ?condition, "visibility {visibility}");
+            // - Ignore disconnected clients and the server-client.
             let Some(ref mut visibility_settings) = visibility_settings else { continue; };
+            tracing::trace!(?client_id, ?entities, ?condition, "visibility {visibility}");
 
             for entity in entities.iter()
             {
@@ -459,10 +466,11 @@ impl VisibilityCache
         { tracing::error!(?entity, "missing entity on remove entity"); }
 
         // Update visibility of this entity for clients that can see this condition.
+        // - We skip disconnected clients and server-clients.
         for client_id in clients.iter()
         {
-            tracing::trace!(?client_id, ?entity, ?condition, "visibility false");
             let Some(client) = client_cache.get_client_mut(*client_id) else { continue; };
+            tracing::trace!(?client_id, ?entity, ?condition, "visibility false");
             client.visibility_mut().set_visibility(entity, false);
         }
 

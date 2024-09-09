@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2]
+
+### Fixed
+
+- The visibility cache no longer attempts to set entity visibility for server-clients, which only care about visibility of events.
+
+
 ## [0.7.1]
 
 ### Fixed
