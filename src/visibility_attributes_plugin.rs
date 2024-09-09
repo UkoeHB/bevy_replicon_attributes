@@ -28,17 +28,23 @@ fn add_server_to_cache(server_id: ClientId) -> impl FnMut(ResMut<'_, VisibilityC
 //-------------------------------------------------------------------------------------------------------------------
 
 fn reset_clients(
-    mut visibility_cache : ResMut<VisibilityCache>,
-    mut client_cache     : ResMut<ReplicatedClients>,
-    mut events           : EventReader<ServerEvent>,
+    mut visibility_cache  : ResMut<VisibilityCache>,
+    mut client_cache      : ResMut<ReplicatedClients>,
+    mut connections       : EventReader<ServerEvent>,
+    mut start_replication : EventReader<StartReplication>,
 ){
-    for event in events.read()
+    for event in connections.read()
     {
         match event
         {
-            ServerEvent::ClientConnected{ client_id }        => visibility_cache.reset_client(&mut client_cache, *client_id),
+            ServerEvent::ClientConnected{ client_id }        => visibility_cache.remove_client(*client_id),
             ServerEvent::ClientDisconnected{ client_id, .. } => visibility_cache.remove_client(*client_id),
         }
+    }
+    for StartReplication(client_id) in start_replication.read()
+    {
+        // We can't do this at the same time as connecting since replication may not start right away.
+        visibility_cache.reset_client(&mut client_cache, *client_id);
     }
 }
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1]
+
+### Fixed
+
+- Wait until `StartReplication` events are emitted before resetting clients when using `ReconnectPolicy::Reset`.
+
+
 ## [0.7.0]
 
 - Update to `bevy_replicon` v0.28.1.
