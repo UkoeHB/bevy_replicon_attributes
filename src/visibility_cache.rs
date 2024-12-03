@@ -243,7 +243,7 @@ impl VisibilityCache
         let entry = self.conditions.entry(condition_id);
 
         // Update attributes map if this is a new condition.
-        let is_new_condition = if let Entry::Vacant(_) = &entry { true } else { false };
+        let is_new_condition = matches!(entry, Entry::Vacant(_));
 
         if is_new_condition
         {
@@ -352,7 +352,7 @@ impl VisibilityCache
     pub(crate) fn iter_client_visibility<'s, 'a: 's>(
         &'s self,
         condition: &'a VisibilityCondition
-    ) -> impl Iterator<Item = ClientId> + '_
+    ) -> impl Iterator<Item = ClientId> + 's
     {
         self.clients
             .iter()

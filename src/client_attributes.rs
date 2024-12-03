@@ -61,7 +61,7 @@ impl<'w> ClientAttributes<'w>
     /// Evaluates a visibility condition against all clients.
     ///
     /// Returns an iterator of clients that evaluate true.
-    pub fn evaluate<'s, 'a: 's>(&'s self, condition: &'a VisibilityCondition) -> impl Iterator<Item = ClientId> + '_
+    pub fn evaluate<'s, 'a: 's>(&'s self, condition: &'a VisibilityCondition) -> impl Iterator<Item = ClientId> + 's
     {
         self.cache.iter_client_visibility(condition)
     }
@@ -72,7 +72,7 @@ impl<'w> ClientAttributes<'w>
     pub fn evaluate_connected<'s, 'a: 's>(
         &'s self,
         condition: &'a VisibilityCondition
-    ) -> impl Iterator<Item = &ReplicatedClient> + '_
+    ) -> impl Iterator<Item = &'s ReplicatedClient> + 's
     {
         self.client_info
             .iter()

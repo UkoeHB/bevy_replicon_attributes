@@ -5,7 +5,7 @@ use bevy_replicon_attributes::*;
 //third-party shortcuts
 use bevy::prelude::*;
 use bevy_cobweb::prelude::*;
-use bevy_replicon::{client::ServerInitTick, prelude::*, test_app::ServerTestAppExt};
+use bevy_replicon::{client::ServerUpdateTick, prelude::*, test_app::ServerTestAppExt};
 use bevy_replicon_repair::*;
 use serde::{Deserialize, Serialize};
 
@@ -610,7 +610,7 @@ fn reconnect_and_vis_accuracy_reset()
 
     // reconnect
     common::reconnect(&mut server_app, &mut client_app, client_id);
-    let _ = client_app.world_mut().resource_mut::<ServerInitTick>().into_inner();  //trigger repair
+    let _ = client_app.world_mut().resource_mut::<ServerUpdateTick>().into_inner();  //trigger repair
     client_app.update();
     assert_eq!(*client_app.world().resource::<ClientRepairState>(), ClientRepairState::Done);
 
@@ -677,7 +677,7 @@ fn reconnect_and_vis_accuracy_repair()
 
     // reconnect
     common::reconnect(&mut server_app, &mut client_app, client_id);
-    let _ = client_app.world_mut().resource_mut::<ServerInitTick>().into_inner();  //trigger repair
+    let _ = client_app.world_mut().resource_mut::<ServerUpdateTick>().into_inner();  //trigger repair
     client_app.update();
     assert_eq!(*client_app.world().resource::<ClientRepairState>(), ClientRepairState::Done);
 
