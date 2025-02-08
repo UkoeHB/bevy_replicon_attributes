@@ -27,14 +27,14 @@ pub(super) fn connect(server_app: &mut App, client_app: &mut App) -> ClientId
 
 //-------------------------------------------------------------------------------------------------------------------
 
-pub(super) fn disconnect(server_app: &mut App, client_app: &mut App)
+pub(super) fn _disconnect(server_app: &mut App, client_app: &mut App)
 {
     server_app.disconnect_client(client_app);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 
-pub(super) fn reconnect(server_app: &mut App, client_app: &mut App, client_id: ClientId)
+pub(super) fn _reconnect(server_app: &mut App, client_app: &mut App, client_id: ClientId)
 {
     let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
     assert!(
@@ -49,7 +49,7 @@ pub(super) fn reconnect(server_app: &mut App, client_app: &mut App, client_id: C
     let mut server = server_app.world_mut().resource_mut::<RepliconServer>();
     server.set_running(true);
 
-    server_app.world_mut().send_event(ServerEvent::ClientConnected { client_id });
+    server_app.world_mut().trigger(ClientConnected { client_id });
 
     server_app.update(); // Will update `ConnectedClients`, otherwise next call will assign the same ID.
     client_app.update();
@@ -93,7 +93,7 @@ pub(super) fn read_event<E: Event + Copy>(mut reader: EventReader<E>) -> Vec<E>
 
 //-------------------------------------------------------------------------------------------------------------------
 
-pub(super) fn evaluate_connected(In(vis): In<VisibilityCondition>, attributes: ClientAttributes) -> usize
+pub(super) fn _evaluate_connected(In(vis): In<VisibilityCondition>, attributes: ClientAttributes) -> usize
 {
     attributes.evaluate_connected(&vis).count()
 }

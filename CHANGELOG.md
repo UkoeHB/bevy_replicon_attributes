@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.0]
+
+- Update to `bevy_replicon` v0.30.
+- Remove `VisibilityConnectSet`. Use `bevy_replicon::prelude::ServerSet::Receive` instead.
+
+
 ## [0.8.0]
 
 - Updated `bevy` to v0.15.

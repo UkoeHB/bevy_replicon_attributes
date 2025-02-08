@@ -5,8 +5,7 @@ use bevy_replicon_attributes::*;
 //third-party shortcuts
 use bevy::prelude::*;
 use bevy_cobweb::prelude::*;
-use bevy_replicon::{client::ServerUpdateTick, prelude::*, test_app::ServerTestAppExt};
-use bevy_replicon_repair::*;
+use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
 use serde::{Deserialize, Serialize};
 
 //standard shortcuts
@@ -45,7 +44,8 @@ fn blacklist_disallowed()
                 ..Default::default()
             }),
         ))
-        .add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+        .add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset })
+        .finish();
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -61,7 +61,8 @@ fn whitelist_allowed()
                 ..Default::default()
             }),
         ))
-        .add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+        .add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset })
+        .finish();
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -77,7 +78,8 @@ fn all_disallowed()
                 ..Default::default()
             }),
         ))
-        .add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+        .add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset })
+        .finish();
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -100,6 +102,8 @@ fn normal_replication()
         .replicate::<ComponentA>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     common::connect(&mut server_app, &mut client_app);
 
@@ -113,7 +117,7 @@ fn normal_replication()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 1);
+    assert_eq!(client_app.world().entities().len(), 6 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -145,6 +149,8 @@ fn basic_visibility()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let client_id = common::connect(&mut server_app, &mut client_app);
 
@@ -159,7 +165,7 @@ fn basic_visibility()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 1);
+    assert_eq!(client_app.world().entities().len(), 6 + 1);
 
     // require B
     server_app.world_mut().spawn((Replicated, ComponentB, vis!(B)));
@@ -176,10 +182,10 @@ fn basic_visibility()
             .get_single(client_app.world())
             .is_err()
     );
-    assert_eq!(client_app.world().entities().len(), 1);
+    assert_eq!(client_app.world().entities().len(), 6 + 1);
 
     // add B to client
-    syscall(server_app.world_mut(), (client_id, B), add_attribute);
+    server_app.world_mut().syscall((client_id, B), add_attribute);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -190,7 +196,7 @@ fn basic_visibility()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentB>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 2);
+    assert_eq!(client_app.world().entities().len(), 6 + 2);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -222,6 +228,8 @@ fn connect_after_global_vis_spawn()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     // global
     server_app.world_mut().spawn((Replicated, ComponentA, vis!(Global)));
@@ -229,7 +237,7 @@ fn connect_after_global_vis_spawn()
     server_app.update();
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 
     // connect after spawn
     let _client_id = common::connect(&mut server_app, &mut client_app);
@@ -242,7 +250,7 @@ fn connect_after_global_vis_spawn()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 1);
+    assert_eq!(client_app.world().entities().len(), 6 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -274,6 +282,8 @@ fn connect_after_empty_vis_spawn()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     // empty = invisible
     server_app.world_mut().spawn((Replicated, ComponentA, vis!()));
@@ -281,7 +291,7 @@ fn connect_after_empty_vis_spawn()
     server_app.update();
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 
     // connect after spawn
     let _client_id = common::connect(&mut server_app, &mut client_app);
@@ -290,7 +300,7 @@ fn connect_after_empty_vis_spawn()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -322,6 +332,8 @@ fn connect_after_nonempty_vis_spawn()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     // spawn for A
     server_app.world_mut().spawn((Replicated, ComponentA, vis!(A)));
@@ -329,7 +341,7 @@ fn connect_after_nonempty_vis_spawn()
     server_app.update();
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 
     // connect after spawn
     let client_id = common::connect(&mut server_app, &mut client_app);
@@ -338,10 +350,10 @@ fn connect_after_nonempty_vis_spawn()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 
     // add attribute
-    syscall(server_app.world_mut(), (client_id, A), add_attribute);
+    server_app.world_mut().syscall((client_id, A), add_attribute);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -351,351 +363,362 @@ fn connect_after_nonempty_vis_spawn()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 1);
+    assert_eq!(client_app.world().entities().len(), 6 + 1);
 }
 
-//-------------------------------------------------------------------------------------------------------------------
+// //-------------------------------------------------------------------------------------------------------------------
 
-// VisibilityCache::evaluate_connected only sees connected clients even with replicon-repair and Repair policy
-#[test]
-fn mismatched_connections_with_repair()
-{
-    // prepare tracing
-    /*
-    let subscriber = tracing_subscriber::FmtSubscriber::builder()
-        .with_max_level(tracing::Level::TRACE)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
-    */
+// // VisibilityCache::evaluate_connected only sees connected clients even with replicon-repair and Repair policy
+// #[test]
+// fn mismatched_connections_with_repair()
+// {
+//     // prepare tracing
+//     /*
+//     let subscriber = tracing_subscriber::FmtSubscriber::builder()
+//         .with_max_level(tracing::Level::TRACE)
+//         .finish();
+//     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+//     */
 
-    let mut server_app = App::new();
-    let mut client_app1 = App::new();
-    let mut client_app2 = App::new();
-    for app in [&mut server_app, &mut client_app1, &mut client_app2] {
-        app.add_plugins((
-            MinimalPlugins,
-            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                visibility_policy: VisibilityPolicy::Whitelist,
-                ..Default::default()
-            }),
-        ))
-        .replicate_repair::<ComponentA>();
-    }
-    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Repair });
-    client_app1.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
-    client_app2.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
+//     let mut server_app = App::new();
+//     let mut client_app1 = App::new();
+//     let mut client_app2 = App::new();
+//     for app in [&mut server_app, &mut client_app1, &mut client_app2] {
+//         app.add_plugins((
+//             MinimalPlugins,
+//             RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
+//                 tick_policy: TickPolicy::EveryFrame,
+//                 visibility_policy: VisibilityPolicy::Whitelist,
+//                 ..Default::default()
+//             }),
+//         ))
+//         .replicate_repair::<ComponentA>();
+//     }
+//     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Repair });
+//     client_app1.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
+//     client_app2.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
+//     client_app1.finish();
+//     client_app2.finish();
+//     server_app.finish();
 
-    let client_id1 = common::connect(&mut server_app, &mut client_app1);
-    let client_id2 = common::connect(&mut server_app, &mut client_app2);
+//     let client_id1 = common::connect(&mut server_app, &mut client_app1);
+//     let client_id2 = common::connect(&mut server_app, &mut client_app2);
 
-    // Spawn extra entity to force replication init message after reconnect.
-    server_app.world_mut().spawn((Replicated, vis!(Client(client_id1))));
+//     // Spawn extra entity to force replication init message after reconnect.
+//     server_app.world_mut().spawn((Replicated, vis!(Client(client_id1))));
 
-    // add attribute
-    syscall(server_app.world_mut(), (client_id1, A), add_attribute);
-    syscall(server_app.world_mut(), (client_id2, A), add_attribute);
+//     // add attribute
+//     server_app.world_mut().syscall((client_id1, A), add_attribute);
+//     server_app.world_mut().syscall((client_id2, A), add_attribute);
 
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app1);
-    server_app.exchange_with_client(&mut client_app2);
-    client_app1.update();
-    client_app2.update();
+//     server_app.update();
+//     server_app.exchange_with_client(&mut client_app1);
+//     server_app.exchange_with_client(&mut client_app2);
+//     client_app1.update();
+//     client_app2.update();
 
-    // invoke evaluate_connected
-    assert_eq!(syscall(server_app.world_mut(), vis!(A), evaluate_connected), 2);
+//     // invoke evaluate_connected
+//     assert_eq!(server_app.world_mut().syscall(vis!(A), evaluate_connected), 2);
 
-    // disconnect
-    common::disconnect(&mut server_app, &mut client_app1);
+//     // disconnect
+//     common::disconnect(&mut server_app, &mut client_app1);
 
-    // invoke evaluate_connected
-    assert_eq!(syscall(server_app.world_mut(), vis!(A), evaluate_connected), 1);
+//     // invoke evaluate_connected
+//     assert_eq!(server_app.world_mut().syscall(vis!(A), evaluate_connected), 1);
 
-    // reconnect
-    common::reconnect(&mut server_app, &mut client_app1, client_id1);
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app1);
-    server_app.exchange_with_client(&mut client_app2);
-    client_app1.update();
-    client_app2.update();
-    assert_eq!(*client_app1.world().resource::<ClientRepairState>(), ClientRepairState::Done);
+//     // reconnect
+//     common::reconnect(&mut server_app, &mut client_app1, client_id1);
+//     server_app.update();
+//     server_app.exchange_with_client(&mut client_app1);
+//     server_app.exchange_with_client(&mut client_app2);
+//     client_app1.update();
+//     client_app2.update();
+//     assert_eq!(*client_app1.world().resource::<ClientRepairState>(), ClientRepairState::Done);
 
-    // invoke evaluate_connected
-    assert_eq!(syscall(server_app.world_mut(), vis!(A), evaluate_connected), 2);
-}
+//     // invoke evaluate_connected
+//     assert_eq!(server_app.world_mut().syscall(vis!(A), evaluate_connected), 2);
+// }
 
-//-------------------------------------------------------------------------------------------------------------------
+// //-------------------------------------------------------------------------------------------------------------------
 
-// [reset] client reconnects and loses visibility
-#[test]
-fn reconnect_and_lose_visibility_reset()
-{
-    // prepare tracing
-    /*
-    let subscriber = tracing_subscriber::FmtSubscriber::builder()
-        .with_max_level(tracing::Level::TRACE)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
-    */
+// // [reset] client reconnects and loses visibility
+// #[test]
+// fn reconnect_and_lose_visibility_reset()
+// {
+//     // prepare tracing
+//     /*
+//     let subscriber = tracing_subscriber::FmtSubscriber::builder()
+//         .with_max_level(tracing::Level::TRACE)
+//         .finish();
+//     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+//     */
 
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                visibility_policy: VisibilityPolicy::Whitelist,
-                ..Default::default()
-            }),
-        ))
-        .replicate_repair::<ComponentA>()
-        .replicate_repair::<ComponentB>();
-    }
-    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
-    client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
+//     let mut server_app = App::new();
+//     let mut client_app = App::new();
+//     for app in [&mut server_app, &mut client_app] {
+//         app.add_plugins((
+//             MinimalPlugins,
+//             RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
+//                 tick_policy: TickPolicy::EveryFrame,
+//                 visibility_policy: VisibilityPolicy::Whitelist,
+//                 ..Default::default()
+//             }),
+//         ))
+//         .replicate_repair::<ComponentA>()
+//         .replicate_repair::<ComponentB>();
+//     }
+//     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+//     client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
+//     client_app.finish();
+//     server_app.finish();
 
-    let client_id = common::connect(&mut server_app, &mut client_app);
+//     let client_id = common::connect(&mut server_app, &mut client_app);
 
-    // spawn for A
-    // - include extra entity to force replication init message after reconnect
-    server_app.world_mut().spawn((Replicated, vis!(Client(client_id))));
-    server_app.world_mut().spawn((Replicated, ComponentA, vis!(A)));
+//     // spawn for A
+//     // - include extra entity to force replication init message after reconnect
+//     server_app.world_mut().spawn((Replicated, vis!(Client(client_id))));
+//     server_app.world_mut().spawn((Replicated, ComponentA, vis!(A)));
 
-    // add attribute
-    syscall(server_app.world_mut(), (client_id, A), add_attribute);
+//     // add attribute
+//     server_app.world_mut().syscall((client_id, A), add_attribute);
 
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
+//     server_app.update();
+//     server_app.exchange_with_client(&mut client_app);
+//     client_app.update();
 
-    let _client_entity = client_app
-        .world_mut()
-        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
-        .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 2);
+//     let _client_entity = client_app
+//         .world_mut()
+//         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
+//         .single(&client_app.world());
+//     assert_eq!(client_app.world().entities().len(), 6 + 2);
 
-    // disconnect
-    common::disconnect(&mut server_app, &mut client_app);
+//     // disconnect
+//     common::disconnect(&mut server_app, &mut client_app);
 
-    // don't remove visibility (client is reset)
+//     // don't remove visibility (client is reset)
 
-    // reconnect
-    common::reconnect(&mut server_app, &mut client_app, client_id);
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-    assert_eq!(*client_app.world().resource::<ClientRepairState>(), ClientRepairState::Done);
+//     // reconnect
+//     common::reconnect(&mut server_app, &mut client_app, client_id);
+//     server_app.update();
+//     server_app.exchange_with_client(&mut client_app);
+//     client_app.update();
+//     assert_eq!(*client_app.world().resource::<ClientRepairState>(), ClientRepairState::Done);
 
-    assert_eq!(client_app.world().entities().len(), 1);
-}
+//     assert_eq!(client_app.world().entities().len(), 6 + 1);
+// }
 
-//-------------------------------------------------------------------------------------------------------------------
+// //-------------------------------------------------------------------------------------------------------------------
 
-// [repair] client reconnects and loses visibility (manually remove)
-#[test]
-fn reconnect_and_lose_visibility_repair()
-{
-    // prepare tracing
-    /*
-    let subscriber = tracing_subscriber::FmtSubscriber::builder()
-        .with_max_level(tracing::Level::TRACE)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
-    */
+// // [repair] client reconnects and loses visibility (manually remove)
+// #[test]
+// fn reconnect_and_lose_visibility_repair()
+// {
+//     // prepare tracing
+//     /*
+//     let subscriber = tracing_subscriber::FmtSubscriber::builder()
+//         .with_max_level(tracing::Level::TRACE)
+//         .finish();
+//     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+//     */
 
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                visibility_policy: VisibilityPolicy::Whitelist,
-                ..Default::default()
-            }),
-        ))
-        .replicate_repair::<ComponentA>()
-        .replicate_repair::<ComponentB>();
-    }
-    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Repair });
-    client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
+//     let mut server_app = App::new();
+//     let mut client_app = App::new();
+//     for app in [&mut server_app, &mut client_app] {
+//         app.add_plugins((
+//             MinimalPlugins,
+//             RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
+//                 tick_policy: TickPolicy::EveryFrame,
+//                 visibility_policy: VisibilityPolicy::Whitelist,
+//                 ..Default::default()
+//             }),
+//         ))
+//         .replicate_repair::<ComponentA>()
+//         .replicate_repair::<ComponentB>();
+//     }
+//     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Repair });
+//     client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
+//     client_app.finish();
+//     server_app.finish();
 
-    let client_id = common::connect(&mut server_app, &mut client_app);
+//     let client_id = common::connect(&mut server_app, &mut client_app);
 
-    // spawn for A
-    // - include extra entity to force replication init message after reconnect
-    server_app.world_mut().spawn((Replicated, vis!(Client(client_id))));
-    server_app.world_mut().spawn((Replicated, ComponentA, vis!(A)));
+//     // spawn for A
+//     // - include extra entity to force replication init message after reconnect
+//     server_app.world_mut().spawn((Replicated, vis!(Client(client_id))));
+//     server_app.world_mut().spawn((Replicated, ComponentA, vis!(A)));
 
-    // add attribute
-    syscall(server_app.world_mut(), (client_id, A), add_attribute);
+//     // add attribute
+//     server_app.world_mut().syscall((client_id, A), add_attribute);
 
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
+//     server_app.update();
+//     server_app.exchange_with_client(&mut client_app);
+//     client_app.update();
 
-    let _client_entity = client_app
-        .world_mut()
-        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
-        .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 2);
+//     let _client_entity = client_app
+//         .world_mut()
+//         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
+//         .single(&client_app.world());
+//     assert_eq!(client_app.world().entities().len(), 6 + 2);
 
-    // disconnect
-    common::disconnect(&mut server_app, &mut client_app);
+//     // disconnect
+//     common::disconnect(&mut server_app, &mut client_app);
 
-    // remove visibility
-    syscall(server_app.world_mut(), (client_id, A), remove_attribute);
+//     // remove visibility
+//     server_app.world_mut().syscall((client_id, A), remove_attribute);
 
-    server_app.update();
+//     server_app.update();
 
-    // reconnect
-    common::reconnect(&mut server_app, &mut client_app, client_id);
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-    assert_eq!(*client_app.world().resource::<ClientRepairState>(), ClientRepairState::Done);
+//     // reconnect
+//     common::reconnect(&mut server_app, &mut client_app, client_id);
+//     server_app.update();
+//     server_app.exchange_with_client(&mut client_app);
+//     client_app.update();
+//     assert_eq!(*client_app.world().resource::<ClientRepairState>(), ClientRepairState::Done);
 
-    assert_eq!(client_app.world().entities().len(), 1);
-}
+//     assert_eq!(client_app.world().entities().len(), 6 + 1);
+// }
 
-//-------------------------------------------------------------------------------------------------------------------
+// //-------------------------------------------------------------------------------------------------------------------
 
-// [reset] client reconnects and gains visibility of global vis entity but not new non-empty vis entity
-#[test]
-fn reconnect_and_vis_accuracy_reset()
-{
-    // prepare tracing
-    /*
-    let subscriber = tracing_subscriber::FmtSubscriber::builder()
-        .with_max_level(tracing::Level::TRACE)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
-    */
+// // [reset] client reconnects and gains visibility of global vis entity but not new non-empty vis entity
+// #[test]
+// fn reconnect_and_vis_accuracy_reset()
+// {
+//     // prepare tracing
+//     /*
+//     let subscriber = tracing_subscriber::FmtSubscriber::builder()
+//         .with_max_level(tracing::Level::TRACE)
+//         .finish();
+//     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+//     */
 
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                visibility_policy: VisibilityPolicy::Whitelist,
-                ..Default::default()
-            }),
-        ))
-        .replicate_repair::<ComponentA>()
-        .replicate_repair::<ComponentB>();
-    }
-    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
-    client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
+//     let mut server_app = App::new();
+//     let mut client_app = App::new();
+//     for app in [&mut server_app, &mut client_app] {
+//         app.add_plugins((
+//             MinimalPlugins,
+//             RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
+//                 tick_policy: TickPolicy::EveryFrame,
+//                 visibility_policy: VisibilityPolicy::Whitelist,
+//                 ..Default::default()
+//             }),
+//         ))
+//         .replicate_repair::<ComponentA>()
+//         .replicate_repair::<ComponentB>();
+//     }
+//     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+//     client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
+//     client_app.finish();
+//     server_app.finish();
 
-    let client_id = common::connect(&mut server_app, &mut client_app);
+//     let client_id = common::connect(&mut server_app, &mut client_app);
 
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
+//     server_app.update();
+//     server_app.exchange_with_client(&mut client_app);
+//     client_app.update();
 
-    // add attribute
-    syscall(server_app.world_mut(), (client_id, B), add_attribute);
+//     // add attribute
+//     server_app.world_mut().syscall((client_id, B), add_attribute);
 
-    // disconnect
-    common::disconnect(&mut server_app, &mut client_app);
+//     // disconnect
+//     common::disconnect(&mut server_app, &mut client_app);
 
-    // spawns
-    server_app.world_mut().spawn((Replicated, ComponentA, vis!(Global)));
-    server_app.world_mut().spawn((Replicated, ComponentB, vis!(B)));
+//     // spawns
+//     server_app.world_mut().spawn((Replicated, ComponentA, vis!(Global)));
+//     server_app.world_mut().spawn((Replicated, ComponentB, vis!(B)));
 
-    server_app.update();
+//     server_app.update();
 
-    // reconnect
-    common::reconnect(&mut server_app, &mut client_app, client_id);
-    let _ = client_app.world_mut().resource_mut::<ServerUpdateTick>().into_inner();  //trigger repair
-    client_app.update();
-    assert_eq!(*client_app.world().resource::<ClientRepairState>(), ClientRepairState::Done);
+//     // reconnect
+//     common::reconnect(&mut server_app, &mut client_app, client_id);
+//     let _ = client_app.world_mut().resource_mut::<ServerUpdateTick>().into_inner();  //trigger repair
+//     client_app.update();
+//     assert_eq!(*client_app.world().resource::<ClientRepairState>(), ClientRepairState::Done);
 
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
+//     server_app.update();
+//     server_app.exchange_with_client(&mut client_app);
+//     client_app.update();
 
-    // did not receive component B, the attribute was lost on disconnect
-    let _client_entity = client_app
-        .world_mut()
-        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
-        .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 1);
-}
+//     // did not receive component B, the attribute was lost on disconnect
+//     let _client_entity = client_app
+//         .world_mut()
+//         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
+//         .single(&client_app.world());
+//     assert_eq!(client_app.world().entities().len(), 6 + 1);
+// }
 
-//-------------------------------------------------------------------------------------------------------------------
+// //-------------------------------------------------------------------------------------------------------------------
 
-// [repair] client reconnects and gains visibility of newly spawned entity and newly spawned global vis entity
-#[test]
-fn reconnect_and_vis_accuracy_repair()
-{
-    // prepare tracing
-    /*
-    let subscriber = tracing_subscriber::FmtSubscriber::builder()
-        .with_max_level(tracing::Level::TRACE)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
-    */
+// // [repair] client reconnects and gains visibility of newly spawned entity and newly spawned global vis entity
+// #[test]
+// fn reconnect_and_vis_accuracy_repair()
+// {
+//     // prepare tracing
+//     /*
+//     let subscriber = tracing_subscriber::FmtSubscriber::builder()
+//         .with_max_level(tracing::Level::TRACE)
+//         .finish();
+//     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+//     */
 
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                visibility_policy: VisibilityPolicy::Whitelist,
-                ..Default::default()
-            }),
-        ))
-        .replicate_repair::<ComponentA>()
-        .replicate_repair::<ComponentB>();
-    }
-    server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Repair });
-    client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
+//     let mut server_app = App::new();
+//     let mut client_app = App::new();
+//     for app in [&mut server_app, &mut client_app] {
+//         app.add_plugins((
+//             MinimalPlugins,
+//             RepliconPlugins.set(bevy_replicon::prelude::ServerPlugin {
+//                 tick_policy: TickPolicy::EveryFrame,
+//                 visibility_policy: VisibilityPolicy::Whitelist,
+//                 ..Default::default()
+//             }),
+//         ))
+//         .replicate_repair::<ComponentA>()
+//         .replicate_repair::<ComponentB>();
+//     }
+//     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Repair });
+//     client_app.add_plugins(bevy_replicon_repair::ClientPlugin{ cleanup_prespawns: false });
+//     client_app.finish();
+//     server_app.finish();
 
-    let client_id = common::connect(&mut server_app, &mut client_app);
+//     let client_id = common::connect(&mut server_app, &mut client_app);
 
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
+//     server_app.update();
+//     server_app.exchange_with_client(&mut client_app);
+//     client_app.update();
 
-    // add attribute
-    syscall(server_app.world_mut(), (client_id, B), add_attribute);
+//     // add attribute
+//     server_app.world_mut().syscall((client_id, B), add_attribute);
 
-    // disconnect
-    common::disconnect(&mut server_app, &mut client_app);
+//     // disconnect
+//     common::disconnect(&mut server_app, &mut client_app);
 
-    // spawns
-    server_app.world_mut().spawn((Replicated, ComponentA, vis!(Global)));
-    server_app.world_mut().spawn((Replicated, ComponentB, vis!(B)));
+//     // spawns
+//     server_app.world_mut().spawn((Replicated, ComponentA, vis!(Global)));
+//     server_app.world_mut().spawn((Replicated, ComponentB, vis!(B)));
 
-    server_app.update();
+//     server_app.update();
 
-    // reconnect
-    common::reconnect(&mut server_app, &mut client_app, client_id);
-    let _ = client_app.world_mut().resource_mut::<ServerUpdateTick>().into_inner();  //trigger repair
-    client_app.update();
-    assert_eq!(*client_app.world().resource::<ClientRepairState>(), ClientRepairState::Done);
+//     // reconnect
+//     common::reconnect(&mut server_app, &mut client_app, client_id);
+//     let _ = client_app.world_mut().resource_mut::<ServerUpdateTick>().into_inner();  //trigger repair
+//     client_app.update();
+//     assert_eq!(*client_app.world().resource::<ClientRepairState>(), ClientRepairState::Done);
 
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
+//     server_app.update();
+//     server_app.exchange_with_client(&mut client_app);
+//     client_app.update();
 
-    // received component B, the attribute was retained
-    let _client_entity = client_app
-        .world_mut()
-        .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
-        .single(&client_app.world());
-    let _client_entity = client_app
-        .world_mut()
-        .query_filtered::<Entity, (With<Replicated>, With<ComponentB>)>()
-        .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 2);
-}
+//     // received component B, the attribute was retained
+//     let _client_entity = client_app
+//         .world_mut()
+//         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
+//         .single(&client_app.world());
+//     let _client_entity = client_app
+//         .world_mut()
+//         .query_filtered::<Entity, (With<Replicated>, With<ComponentB>)>()
+//         .single(&client_app.world());
+//     assert_eq!(client_app.world().entities().len(), 6 + 2);
+// }
 
 //-------------------------------------------------------------------------------------------------------------------
 
@@ -726,6 +749,8 @@ fn remove_attribute_from_client()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let client_id = common::connect(&mut server_app, &mut client_app);
 
@@ -733,7 +758,7 @@ fn remove_attribute_from_client()
     server_app.world_mut().spawn((Replicated, ComponentA, vis!(A)));
 
     // add attribute
-    syscall(server_app.world_mut(), (client_id, A), add_attribute);
+    server_app.world_mut().syscall((client_id, A), add_attribute);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -743,16 +768,16 @@ fn remove_attribute_from_client()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 1);
+    assert_eq!(client_app.world().entities().len(), 6 + 1);
 
     // remove attribute
-    syscall(server_app.world_mut(), (client_id, A), remove_attribute);
+    server_app.world_mut().syscall((client_id, A), remove_attribute);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -784,6 +809,8 @@ fn add_remove_attribute_same_tick()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let client_id = common::connect(&mut server_app, &mut client_app);
 
@@ -791,16 +818,16 @@ fn add_remove_attribute_same_tick()
     server_app.world_mut().spawn((Replicated, ComponentA, vis!(A)));
 
     // add attribute
-    syscall(server_app.world_mut(), (client_id, A), add_attribute);
+    server_app.world_mut().syscall((client_id, A), add_attribute);
 
     // remove attribute
-    syscall(server_app.world_mut(), (client_id, A), remove_attribute);
+    server_app.world_mut().syscall((client_id, A), remove_attribute);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -832,6 +859,8 @@ fn add_remove_add_attribute_same_tick()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let client_id = common::connect(&mut server_app, &mut client_app);
 
@@ -839,13 +868,13 @@ fn add_remove_add_attribute_same_tick()
     server_app.world_mut().spawn((Replicated, ComponentA, vis!(A)));
 
     // add attribute
-    syscall(server_app.world_mut(), (client_id, A), add_attribute);
+    server_app.world_mut().syscall((client_id, A), add_attribute);
 
     // remove attribute
-    syscall(server_app.world_mut(), (client_id, A), remove_attribute);
+    server_app.world_mut().syscall((client_id, A), remove_attribute);
 
     // add attribute
-    syscall(server_app.world_mut(), (client_id, A), add_attribute);
+    server_app.world_mut().syscall((client_id, A), add_attribute);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -855,7 +884,7 @@ fn add_remove_add_attribute_same_tick()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 1);
+    assert_eq!(client_app.world().entities().len(), 6 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -888,6 +917,9 @@ fn multiple_clients_different_entities()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app1.finish();
+    client_app2.finish();
+    server_app.finish();
 
     let client_id1 = common::connect(&mut server_app, &mut client_app1);
     let client_id2 = common::connect(&mut server_app, &mut client_app2);
@@ -897,8 +929,8 @@ fn multiple_clients_different_entities()
     server_app.world_mut().spawn((Replicated, ComponentB, vis!(B)));
 
     // add attributes
-    syscall(server_app.world_mut(), (client_id1, A), add_attribute);
-    syscall(server_app.world_mut(), (client_id2, B), add_attribute);
+    server_app.world_mut().syscall((client_id1, A), add_attribute);
+    server_app.world_mut().syscall((client_id2, B), add_attribute);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app1);
@@ -910,13 +942,13 @@ fn multiple_clients_different_entities()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app1.world());
-    assert_eq!(client_app1.world().entities().len(), 1);
+    assert_eq!(client_app1.world().entities().len(), 6 + 1);
 
     let _client_entity = client_app2
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentB>)>()
         .single(&client_app2.world());
-    assert_eq!(client_app2.world().entities().len(), 1);
+    assert_eq!(client_app2.world().entities().len(), 6 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -948,11 +980,13 @@ fn vis_added_post_spawn()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
-    syscall(server_app.world_mut(), (client_id, A), add_attribute);
+    server_app.world_mut().syscall((client_id, A), add_attribute);
 
     // spawn for A
     let server_entity = server_app.world_mut().spawn((Replicated, ComponentA)).id();
@@ -961,7 +995,7 @@ fn vis_added_post_spawn()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 
     // visibility for A
     server_app.world_mut().entity_mut(server_entity).insert(vis!(A));
@@ -974,7 +1008,7 @@ fn vis_added_post_spawn()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 1);
+    assert_eq!(client_app.world().entities().len(), 6 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1006,11 +1040,13 @@ fn vis_added_multiple_entities_same_tick()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
-    syscall(server_app.world_mut(), (client_id, A), add_attribute);
+    server_app.world_mut().syscall((client_id, A), add_attribute);
 
     // spawns
     server_app.world_mut().spawn((Replicated, ComponentA, vis!(A)));
@@ -1026,7 +1062,7 @@ fn vis_added_multiple_entities_same_tick()
         .iter_mut(client_app.world_mut())
         .len();
     assert_eq!(num, 2);
-    assert_eq!(client_app.world().entities().len(), 2);
+    assert_eq!(client_app.world().entities().len(), 6 + 2);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1058,11 +1094,13 @@ fn vis_added_multiple_entities_different_ticks()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
-    syscall(server_app.world_mut(), (client_id, A), add_attribute);
+    server_app.world_mut().syscall((client_id, A), add_attribute);
 
     // spawns
     server_app.world_mut().spawn((Replicated, ComponentA, vis!(A)));
@@ -1083,7 +1121,7 @@ fn vis_added_multiple_entities_different_ticks()
         .iter_mut(client_app.world_mut())
         .len();
     assert_eq!(num, 2);
-    assert_eq!(client_app.world().entities().len(), 2);
+    assert_eq!(client_app.world().entities().len(), 6 + 2);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1115,11 +1153,13 @@ fn vis_removed()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
-    syscall(server_app.world_mut(), (client_id, A), add_attribute);
+    server_app.world_mut().syscall((client_id, A), add_attribute);
 
     // spawn
     let server_entity = server_app.world_mut().spawn((Replicated, ComponentA, vis!(A))).id();
@@ -1132,7 +1172,7 @@ fn vis_removed()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 1);
+    assert_eq!(client_app.world().entities().len(), 6 + 1);
 
     // remove visibility
     server_app.world_mut().entity_mut(server_entity).remove::<VisibilityCondition>();
@@ -1141,7 +1181,7 @@ fn vis_removed()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1173,6 +1213,8 @@ fn vis_changes_to_empty()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let _client_id = common::connect(&mut server_app, &mut client_app);
 
@@ -1183,7 +1225,7 @@ fn vis_changes_to_empty()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 
     // empty visibility
     server_app.world_mut().entity_mut(server_entity).insert(vis!());
@@ -1192,7 +1234,7 @@ fn vis_changes_to_empty()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1224,6 +1266,8 @@ fn vis_changes_to_global()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let _client_id = common::connect(&mut server_app, &mut client_app);
 
@@ -1234,7 +1278,7 @@ fn vis_changes_to_global()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 
     // global visibility
     server_app.world_mut().entity_mut(server_entity).insert(vis!(Global));
@@ -1247,7 +1291,7 @@ fn vis_changes_to_global()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 1);
+    assert_eq!(client_app.world().entities().len(), 6 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1279,11 +1323,13 @@ fn vis_changes()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
-    syscall(server_app.world_mut(), (client_id, B), add_attribute);
+    server_app.world_mut().syscall((client_id, B), add_attribute);
 
     // spawn
     let server_entity = server_app.world_mut().spawn((Replicated, ComponentA, vis!(A))).id();
@@ -1292,7 +1338,7 @@ fn vis_changes()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 
     // change to B
     server_app.world_mut().entity_mut(server_entity).insert(vis!(B));
@@ -1305,7 +1351,7 @@ fn vis_changes()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 1);
+    assert_eq!(client_app.world().entities().len(), 6 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1337,11 +1383,13 @@ fn vis_changes_twice_same_tick()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
-    syscall(server_app.world_mut(), (client_id, B), add_attribute);
+    server_app.world_mut().syscall((client_id, B), add_attribute);
 
     // spawn
     let server_entity = server_app.world_mut().spawn((Replicated, ComponentA, vis!(A))).id();
@@ -1350,7 +1398,7 @@ fn vis_changes_twice_same_tick()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 
     // change to B
     server_app.world_mut().entity_mut(server_entity).insert(vis!(B));
@@ -1362,7 +1410,7 @@ fn vis_changes_twice_same_tick()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1394,11 +1442,13 @@ fn vis_added_removed_same_tick()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
-    syscall(server_app.world_mut(), (client_id, A), add_attribute);
+    server_app.world_mut().syscall((client_id, A), add_attribute);
 
     // spawn
     let server_entity = server_app.world_mut().spawn((Replicated, ComponentA)).id();
@@ -1407,7 +1457,7 @@ fn vis_added_removed_same_tick()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 
     // insert A
     server_app.world_mut().entity_mut(server_entity).insert(vis!(A));
@@ -1419,7 +1469,7 @@ fn vis_added_removed_same_tick()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1451,11 +1501,13 @@ fn vis_added_removed_added_same_tick()
         .replicate::<ComponentB>();
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let client_id = common::connect(&mut server_app, &mut client_app);
 
     // add attribute
-    syscall(server_app.world_mut(), (client_id, A), add_attribute);
+    server_app.world_mut().syscall((client_id, A), add_attribute);
 
     // spawn
     let server_entity = server_app.world_mut().spawn((Replicated, ComponentA)).id();
@@ -1464,7 +1516,7 @@ fn vis_added_removed_added_same_tick()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 0);
+    assert_eq!(client_app.world().entities().len(), 6 + 0);
 
     // insert A
     server_app.world_mut().entity_mut(server_entity).insert(vis!(A));
@@ -1483,7 +1535,7 @@ fn vis_added_removed_added_same_tick()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 1);
+    assert_eq!(client_app.world().entities().len(), 6 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------

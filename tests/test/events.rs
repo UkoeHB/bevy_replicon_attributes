@@ -55,17 +55,19 @@ fn event_to_empty_visible_to_none()
         .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let _client_id = common::connect(&mut server_app, &mut client_app);
 
     // send event to empty
-    syscall(server_app.world_mut(), (E, vis!()), send_event);
+    server_app.world_mut().syscall((E, vis!()), send_event);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(syscall(client_app.world_mut(), (), read_event::<E>).len(), 0);
+    assert_eq!(client_app.world_mut().syscall((), read_event::<E>).len(), 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -96,17 +98,19 @@ fn event_to_global_visible_to_all()
         .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     let _client_id = common::connect(&mut server_app, &mut client_app);
 
     // send event to empty
-    syscall(server_app.world_mut(), (E, vis!(Global)), send_event);
+    server_app.world_mut().syscall((E, vis!(Global)), send_event);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(syscall(client_app.world_mut(), (), read_event::<E>).len(), 1);
+    assert_eq!(client_app.world_mut().syscall((), read_event::<E>).len(), 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -138,16 +142,19 @@ fn event_to_condition_visible_to_matching()
         .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app1.finish();
+    client_app2.finish();
+    server_app.finish();
 
     let client_id1 = common::connect(&mut server_app, &mut client_app1);
     let client_id2 = common::connect(&mut server_app, &mut client_app2);
 
     // add attributes
-    syscall(server_app.world_mut(), (client_id1, A), add_attribute);
-    syscall(server_app.world_mut(), (client_id2, B), add_attribute);
+    server_app.world_mut().syscall((client_id1, A), add_attribute);
+    server_app.world_mut().syscall((client_id2, B), add_attribute);
 
     // send event to A
-    syscall(server_app.world_mut(), (E, vis!(A)), send_event);
+    server_app.world_mut().syscall((E, vis!(A)), send_event);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app1);
@@ -188,12 +195,15 @@ fn event_to_clients_visible_to_targets()
         .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app1.finish();
+    client_app2.finish();
+    server_app.finish();
 
     let client_id1 = common::connect(&mut server_app, &mut client_app1);
     let _client_id2 = common::connect(&mut server_app, &mut client_app2);
 
     // send event to client
-    syscall(server_app.world_mut(), (E, vis!(Client(client_id1))), send_event);
+    server_app.world_mut().syscall((E, vis!(Client(client_id1))), send_event);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app1);
@@ -234,16 +244,19 @@ fn event_before_attributes_not_seen()
         .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app1.finish();
+    client_app2.finish();
+    server_app.finish();
 
     let client_id1 = common::connect(&mut server_app, &mut client_app1);
     let client_id2 = common::connect(&mut server_app, &mut client_app2);
 
     // send event to A
-    syscall(server_app.world_mut(), (E, vis!(A)), send_event);
+    server_app.world_mut().syscall((E, vis!(A)), send_event);
 
     // add attributes
-    syscall(server_app.world_mut(), (client_id1, A), add_attribute);
-    syscall(server_app.world_mut(), (client_id2, B), add_attribute);
+    server_app.world_mut().syscall((client_id1, A), add_attribute);
+    server_app.world_mut().syscall((client_id2, B), add_attribute);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app1);
@@ -283,9 +296,11 @@ fn event_to_global_not_visible_to_unconnected()
         .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app.finish();
+    server_app.finish();
 
     // send event to empty
-    syscall(server_app.world_mut(), (E, vis!(Global)), send_event);
+    server_app.world_mut().syscall((E, vis!(Global)), send_event);
 
     let _client_id = common::connect(&mut server_app, &mut client_app);
 
@@ -293,7 +308,7 @@ fn event_to_global_not_visible_to_unconnected()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(syscall(client_app.world_mut(), (), read_event::<E>).len(), 0);
+    assert_eq!(client_app.world_mut().syscall((), read_event::<E>).len(), 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -325,17 +340,20 @@ fn multiple_events_same_tick_seen()
         .add_server_event::<E>(ChannelKind::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
+    client_app1.finish();
+    client_app2.finish();
+    server_app.finish();
 
     let client_id1 = common::connect(&mut server_app, &mut client_app1);
     let client_id2 = common::connect(&mut server_app, &mut client_app2);
 
     // add attributes
-    syscall(server_app.world_mut(), (client_id1, A), add_attribute);
-    syscall(server_app.world_mut(), (client_id2, A), add_attribute);
+    server_app.world_mut().syscall((client_id1, A), add_attribute);
+    server_app.world_mut().syscall((client_id2, A), add_attribute);
 
     // send events to A
-    syscall(server_app.world_mut(), (E, vis!(A)), send_event);
-    syscall(server_app.world_mut(), (E, vis!(A)), send_event);
+    server_app.world_mut().syscall((E, vis!(A)), send_event);
+    server_app.world_mut().syscall((E, vis!(A)), send_event);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app1);
@@ -377,17 +395,18 @@ fn event_to_server_visible_to_server()
         server_id: Some(ClientId::SERVER),
         reconnect_policy: ReconnectPolicy::Reset
     });
+    server_app.finish();
 
     // initialize the server app
     server_app.update();
 
     // send event
-    syscall(server_app.world_mut(), (E, vis!(Global)), send_event);
+    server_app.world_mut().syscall((E, vis!(Global)), send_event);
 
     // update app for local resending
     server_app.update();
 
-    assert_eq!(syscall(server_app.world_mut(), (), read_event::<E>).len(), 1);
+    assert_eq!(server_app.world_mut().syscall((), read_event::<E>).len(), 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -420,17 +439,18 @@ fn event_not_visible_to_server()
         server_id: Some(ClientId::SERVER),
         reconnect_policy: ReconnectPolicy::Reset
     });
+    server_app.finish();
 
     // initialize the server app
     server_app.update();
 
     // send event
-    syscall(server_app.world_mut(), (E, vis!(A)), send_event);
+    server_app.world_mut().syscall((E, vis!(A)), send_event);
 
     // update app for local resending
     server_app.update();
 
-    assert_eq!(syscall(server_app.world_mut(), (), read_event::<E>).len(), 0);
+    assert_eq!(server_app.world_mut().syscall((), read_event::<E>).len(), 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------

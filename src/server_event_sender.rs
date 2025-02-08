@@ -2,7 +2,7 @@
 use crate::*;
 
 //third-party shortcuts
-use bevy::prelude::*;
+use bevy::prelude::{Event, EventWriter};
 use bevy::ecs::system::SystemParam;
 use bevy_replicon::prelude::{SendMode, ToClients};
 
