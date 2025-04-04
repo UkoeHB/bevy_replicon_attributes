@@ -1,9 +1,15 @@
 # Changelog
 
+## [0.10.0]
+
+- Update to `bevy_replicon` v0.32.
+- With `VisibilityAttributesPlugin::reconnect_policy` set to `ReconnectPolicy::Reset`, clients are only reset once they start replicating (when the `ReplicatedClient` component is added to the client entity) instead of when they initially connect.
+
+
 ## [0.9.0]
 
 - Update to `bevy_replicon` v0.30.
-- Remove `VisibilityConnectSet`. Use `bevy_replicon::prelude::ServerSet::Receive` instead.
+- Remove `VisibilityConnectSet`. Use `bevy_replicon::prelude::ServerSet::TriggerConnectionEvents` and `::Receive` instead.
 
 
 ## [0.8.0]

@@ -30,7 +30,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 bevy           = { version = "0.15", default-features = false }
-bevy_replicon  = { version = "0.30" }
+bevy_replicon  = { version = "0.32" }
 siphasher      = { version = "1.0" }
 smallvec       = { version = "1.12" }
 tracing        = { version = "0.1" }

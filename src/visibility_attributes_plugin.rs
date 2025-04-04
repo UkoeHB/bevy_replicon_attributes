@@ -3,8 +3,9 @@ use crate::*;
 
 //third-party shortcuts
 use bevy::prelude::*;
-use bevy_replicon::prelude::{ClientId, ReplicatedClients, ClientConnected, ClientDisconnected, ServerSet, VisibilityPolicy};
-use bevy_replicon::server::StartReplication;
+use bevy_replicon::prelude::{ClientVisibility, ServerSet, VisibilityPolicy};
+use bevy_replicon::server::ServerPlugin;
+use bevy_replicon::shared::backend::connected_client::{NetworkId, NetworkIdMap};
 
 //standard shortcuts
 
@@ -12,84 +13,102 @@ use bevy_replicon::server::StartReplication;
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
-fn add_server_to_cache(server_id: ClientId) -> impl FnMut(ResMut<'_, VisibilityCache>, ResMut<'_, ReplicatedClients>)
+#[derive(Component)]
+struct NeedsVisibilityReset;
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+fn add_server_to_cache(server_id: u64) -> impl IntoSystem<(), (), ()>
 {
-    move
+    IntoSystem::into_system(move
     |
-        mut visibility_cache : ResMut<VisibilityCache>,
-        mut client_cache     : ResMut<ReplicatedClients>
+        mut visibility_cache: ResMut<VisibilityCache>,
+        mut client_entities: Query<&mut ClientVisibility>
     |
     {
-        visibility_cache.add_server_as_client(&mut client_cache, server_id);
-    }
-}
-
-//-------------------------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------------------------
-
-fn reset_clients_on_connected(
-    event: Trigger<ClientConnected>,
-    mut visibility_cache: ResMut<VisibilityCache>,
-    mut client_cache: ResMut<ReplicatedClients>,
-){
-    let ClientConnected{ client_id } = event.event();
-    visibility_cache.remove_client(*client_id);
-
-    // If StartReplication won't be sent then we can reset the client right now.
-    if client_cache.replicate_after_connect() {
-        visibility_cache.reset_client(&mut client_cache, *client_id);
-    }
+        visibility_cache.add_server_as_client(&mut client_entities, server_id);
+    })
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
 fn reset_clients_on_disconnected(
-    event: Trigger<ClientDisconnected>,
+    event: Trigger<OnRemove, NetworkId>,
     mut visibility_cache: ResMut<VisibilityCache>,
+    client_ids: Query<&NetworkId>,
 ){
-    let ClientDisconnected{ client_id, .. } = event.event();
-    visibility_cache.remove_client(*client_id);
+    let client_entity = event.entity();
+    let Ok(client_id) = client_ids.get(client_entity) else { return };
+    visibility_cache.remove_client(client_id.get());
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
+/// Replication starts when `ReplicatedClient` is added, but we react to `ClientVisibility` because we need that
+/// component.
 fn reset_clients_on_start_replication(
-    event: Trigger<StartReplication>,
+    event: Trigger<OnAdd, ClientVisibility>,
+    mut c: Commands,
     mut visibility_cache: ResMut<VisibilityCache>,
-    mut client_cache: ResMut<ReplicatedClients>,
+    mut client_entities: Query<&mut ClientVisibility>,
+    client_ids: Query<&NetworkId>,
 ){
-    let StartReplication(client_id) = event.event();
-    // We can't do this at the same time as connecting since replication may not start right away when relying
-    // on StartReplication.
-    visibility_cache.reset_client(&mut client_cache, *client_id);
+    let client_entity = event.entity();
+    let Ok(client_id) = client_ids.get(client_entity) else {
+        // Need to do this because there is a race condition between adding ClientVisibility and adding NetworkId.
+        c.entity(client_entity).insert(NeedsVisibilityReset);
+        return;
+    };
+    c.entity(client_entity).remove::<NeedsVisibilityReset>();
+    visibility_cache.reset_client(&mut client_entities, Some(client_entity), client_id.get());
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+fn fallback_reset_clients_on_network_id(
+    event: Trigger<OnAdd, NetworkId>,
+    mut c: Commands,
+    mut visibility_cache: ResMut<VisibilityCache>,
+    mut client_entities: Query<&mut ClientVisibility>,
+    client_ids: Query<&NetworkId, With<NeedsVisibilityReset>>,
+){
+    let client_entity = event.entity();
+    let Ok(client_id) = client_ids.get(client_entity) else { return };
+    c.entity(client_entity).remove::<NeedsVisibilityReset>();
+    visibility_cache.reset_client(&mut client_entities, Some(client_entity), client_id.get());
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
 fn repair_clients(
-    event: Trigger<StartReplication>,
+    event: Trigger<OnAdd, ClientVisibility>,
     mut visibility_cache: ResMut<VisibilityCache>,
-    mut client_cache: ResMut<ReplicatedClients>,
+    mut client_entities: Query<&mut ClientVisibility>,
+    client_ids: Query<&NetworkId>,
 ){
-    let StartReplication(client_id) = event.event();
+    let client_entity = event.entity();
+    let Ok(client_id) = client_ids.get(client_entity) else { return };
     // This will load visibility settings into replicon, which clears visibility when a client disconnects.
-    visibility_cache.repair_client(&mut client_cache, *client_id);
+    visibility_cache.repair_client(&mut client_entities, Some(client_entity), client_id.get());
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 
 fn handle_visibility_removals(
-    mut visibility_cache : ResMut<VisibilityCache>,
-    mut client_cache     : ResMut<ReplicatedClients>,
-    mut removed          : RemovedComponents<VisibilityCondition>,
+    id_map: Res<NetworkIdMap>,
+    mut visibility_cache: ResMut<VisibilityCache>,
+    mut client_entities: Query<&mut ClientVisibility>,
+    mut removed: RemovedComponents<VisibilityCondition>,
 ){
     for entity in removed.read()
     {
-        visibility_cache.remove_entity(&mut client_cache, entity);
+        visibility_cache.remove_entity(&id_map, &mut client_entities, entity);
     }
 }
 
@@ -97,13 +116,14 @@ fn handle_visibility_removals(
 //-------------------------------------------------------------------------------------------------------------------
 
 fn handle_visibility_changes(
-    mut visibility_cache : ResMut<VisibilityCache>,
-    mut client_cache     : ResMut<ReplicatedClients>,
-    changed              : Query<(Entity, &VisibilityCondition), Changed<VisibilityCondition>>,
+    id_map: Res<NetworkIdMap>,
+    mut visibility_cache: ResMut<VisibilityCache>,
+    mut client_entities: Query<&mut ClientVisibility>,
+    changed: Query<(Entity, &VisibilityCondition), Changed<VisibilityCondition>>,
 ){
     for (entity, visibility) in changed.iter()
     {
-        visibility_cache.add_entity_condition(&mut client_cache, entity, &*visibility);
+        visibility_cache.add_entity_condition(&id_map, &mut client_entities, entity, &*visibility);
     }
 }
 
@@ -116,9 +136,9 @@ impl Plugin for AttributesResetPlugin
 {
     fn build(&self, app: &mut App)
     {
-        app.add_observer(reset_clients_on_connected)
-            .add_observer(reset_clients_on_disconnected)
-            .add_observer(reset_clients_on_start_replication);
+        app.add_observer(reset_clients_on_disconnected)
+            .add_observer(reset_clients_on_start_replication)
+            .add_observer(fallback_reset_clients_on_network_id);
     }
 }
 
@@ -149,14 +169,14 @@ pub struct VisibilityUpdateSet;
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum ReconnectPolicy
 {
-    /// Resets a client's visibility when they connect and after a disconnect.
+    /// Resets a client's visibility when they start replicating and after a disconnect.
     ///
-    /// Only attributes added while the client is connected will be used to determine visibility.
+    /// Only attributes added while the client is replicating will be used to determine visibility.
     ///
     /// Newly-connected clients always start with the builtin [`Global`] and [`Client`] attributes.
     Reset,
     /// Preserves client attributes after a disconnect, and repairs client visibility within `bevy_replicon` when
-    /// the client reconnects.
+    /// the client reconnects and starts replicating again.
     ///
     /// Attributes can be added to clients at any time, even before they connect for the first time.
     ///
@@ -169,10 +189,10 @@ pub enum ReconnectPolicy
 /// Plugin that sets up visibility handling systems in a server using `bevy_replicon`.
 pub struct VisibilityAttributesPlugin
 {
-    /// Records the server's `ClientId` if it is a player.
+    /// Records the server's client id if it is a player.
     ///
     /// This needs to be set if you want events sent via [`ServerEventSender`] to be echoed to the server.
-    pub server_id: Option<ClientId>,
+    pub server_id: Option<u64>,
     /// See [`ReconnectPolicy`].
     pub reconnect_policy: ReconnectPolicy,
 }
@@ -182,11 +202,11 @@ impl Plugin for VisibilityAttributesPlugin
     fn build(&self, app: &mut App)
     {
         // todo: replace with plugin dependencies if bevy adds them ??
-        let cache = app
-            .world()
-            .get_resource::<ReplicatedClients>()
-            .expect("bevy_replicon plugins are required for VisibilityAttributesPlugin");
-        if let VisibilityPolicy::Blacklist = cache.visibility_policy()
+        let added_plugins = app.get_added_plugins::<ServerPlugin>();
+        let server_plugin = added_plugins
+            .get(0)
+            .expect("bevy_replicon server plugins are required for VisibilityAttributesPlugin");
+        if let VisibilityPolicy::Blacklist = server_plugin.visibility_policy
         {
             panic!("bevy_replicon VisibilityPolicy::Blacklist is not compatible with VisibilityAttributesPlugin, use \
                 VisibilityPolicy::Whitelist instead");

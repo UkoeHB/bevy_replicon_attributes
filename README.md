@@ -2,12 +2,14 @@
 
 Extends [bevy_replicon](https://github.com/lifescapegame/bevy_replicon) with attributes-based visibility control for server entities and events.
 
+Assumes all client entities are assigned a stable [`NetworkId`](bevy_replicon::prelude::NetworkId) on the server.
+
 
 ### Basic example
 
 ```rust
 use bevy::prelude::*;
-use bevy_replicon::prelude::{ClientId, Replicated};
+use bevy_replicon::prelude::Replicated;
 use bevy_replicon_attributes::prelude::*;
 
 #[derive(Component)]

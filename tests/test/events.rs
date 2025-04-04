@@ -52,13 +52,13 @@ fn event_to_empty_visible_to_none()
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(ChannelKind::Ordered);
+        .add_server_event::<E>(Channel::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
     client_app.finish();
     server_app.finish();
 
-    let _client_id = common::connect(&mut server_app, &mut client_app);
+    common::connect(&mut server_app, &mut client_app, 1);
 
     // send event to empty
     server_app.world_mut().syscall((E, vis!()), send_event);
@@ -95,13 +95,13 @@ fn event_to_global_visible_to_all()
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(ChannelKind::Ordered);
+        .add_server_event::<E>(Channel::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
     client_app.finish();
     server_app.finish();
 
-    let _client_id = common::connect(&mut server_app, &mut client_app);
+    common::connect(&mut server_app, &mut client_app, 1);
 
     // send event to empty
     server_app.world_mut().syscall((E, vis!(Global)), send_event);
@@ -139,15 +139,17 @@ fn event_to_condition_visible_to_matching()
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(ChannelKind::Ordered);
+        .add_server_event::<E>(Channel::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
     client_app1.finish();
     client_app2.finish();
     server_app.finish();
 
-    let client_id1 = common::connect(&mut server_app, &mut client_app1);
-    let client_id2 = common::connect(&mut server_app, &mut client_app2);
+    let client_id1 = 1;
+    let client_id2 = 2;
+    common::connect(&mut server_app, &mut client_app1, client_id1);
+    common::connect(&mut server_app, &mut client_app2, client_id2);
 
     // add attributes
     server_app.world_mut().syscall((client_id1, A), add_attribute);
@@ -192,15 +194,15 @@ fn event_to_clients_visible_to_targets()
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(ChannelKind::Ordered);
+        .add_server_event::<E>(Channel::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
     client_app1.finish();
     client_app2.finish();
     server_app.finish();
 
-    let client_id1 = common::connect(&mut server_app, &mut client_app1);
-    let _client_id2 = common::connect(&mut server_app, &mut client_app2);
+    let client_id1 = common::connect(&mut server_app, &mut client_app1, 1);
+    let _client_id2 = common::connect(&mut server_app, &mut client_app2, 2);
 
     // send event to client
     server_app.world_mut().syscall((E, vis!(Client(client_id1))), send_event);
@@ -241,15 +243,15 @@ fn event_before_attributes_not_seen()
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(ChannelKind::Ordered);
+        .add_server_event::<E>(Channel::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
     client_app1.finish();
     client_app2.finish();
     server_app.finish();
 
-    let client_id1 = common::connect(&mut server_app, &mut client_app1);
-    let client_id2 = common::connect(&mut server_app, &mut client_app2);
+    let client_id1 = common::connect(&mut server_app, &mut client_app1, 1);
+    let client_id2 = common::connect(&mut server_app, &mut client_app2, 2);
 
     // send event to A
     server_app.world_mut().syscall((E, vis!(A)), send_event);
@@ -293,7 +295,7 @@ fn event_to_global_not_visible_to_unconnected()
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(ChannelKind::Ordered);
+        .add_server_event::<E>(Channel::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
     client_app.finish();
@@ -302,7 +304,7 @@ fn event_to_global_not_visible_to_unconnected()
     // send event to empty
     server_app.world_mut().syscall((E, vis!(Global)), send_event);
 
-    let _client_id = common::connect(&mut server_app, &mut client_app);
+    common::connect(&mut server_app, &mut client_app, 1);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -337,15 +339,15 @@ fn multiple_events_same_tick_seen()
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(ChannelKind::Ordered);
+        .add_server_event::<E>(Channel::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{ server_id: None, reconnect_policy: ReconnectPolicy::Reset });
     client_app1.finish();
     client_app2.finish();
     server_app.finish();
 
-    let client_id1 = common::connect(&mut server_app, &mut client_app1);
-    let client_id2 = common::connect(&mut server_app, &mut client_app2);
+    let client_id1 = common::connect(&mut server_app, &mut client_app1, 1);
+    let client_id2 = common::connect(&mut server_app, &mut client_app2, 2);
 
     // add attributes
     server_app.world_mut().syscall((client_id1, A), add_attribute);
@@ -389,10 +391,10 @@ fn event_to_server_visible_to_server()
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(ChannelKind::Ordered);
+        .add_server_event::<E>(Channel::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{
-        server_id: Some(ClientId::SERVER),
+        server_id: Some(0),
         reconnect_policy: ReconnectPolicy::Reset
     });
     server_app.finish();
@@ -433,10 +435,10 @@ fn event_not_visible_to_server()
                 ..Default::default()
             }),
         ))
-        .add_server_event::<E>(ChannelKind::Ordered);
+        .add_server_event::<E>(Channel::Ordered);
     }
     server_app.add_plugins(VisibilityAttributesPlugin{
-        server_id: Some(ClientId::SERVER),
+        server_id: Some(0),
         reconnect_policy: ReconnectPolicy::Reset
     });
     server_app.finish();

@@ -2,7 +2,6 @@
 use crate::*;
 
 //third-party shortcuts
-use bevy_replicon::prelude::ClientId;
 
 //standard shortcuts
 
@@ -21,13 +20,13 @@ pub struct Global;
 ///
 /// Add this attribute to your entity visibility conditions if you want them to visibile to a specific client.
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
-pub struct Client(pub ClientId);
+pub struct Client(pub u64);
 
 impl From<u64> for Client
 {
     fn from(id: u64) -> Self
     {
-        Client(ClientId::new(id))
+        Client(id)
     }
 }
 
@@ -35,7 +34,7 @@ impl VisibilityAttribute for Client
 {
     fn inner_attribute_id(&self) -> u64
     {
-        self.0.get()
+        self.0
     }
 }
 
