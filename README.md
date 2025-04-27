@@ -254,6 +254,7 @@ fn send_event(mut sender: ServerEventSender<E>, attributes: ClientAttributes)
 
 | `bevy_replicon` | `bevy_replicon_attributes` |
 |-----------------|----------------------------|
+| 0.33            | 0.11                       |
 | 0.32            | 0.10                       |
 | 0.30            | 0.9                        |
 | 0.29            | 0.8                        |

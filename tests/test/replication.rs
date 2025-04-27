@@ -117,7 +117,7 @@ fn normal_replication()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 5 + 1);
+    assert_eq!(client_app.world().entities().len(), 3 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -165,7 +165,7 @@ fn basic_visibility()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 5 + 1);
+    assert_eq!(client_app.world().entities().len(), 3 + 1);
 
     // require B
     server_app.world_mut().spawn((Replicated, ComponentB, vis!(B)));
@@ -179,10 +179,10 @@ fn basic_visibility()
         client_app
             .world_mut()
             .query_filtered::<Entity, (With<Replicated>, With<ComponentB>)>()
-            .get_single(client_app.world())
+            .single(client_app.world())
             .is_err()
     );
-    assert_eq!(client_app.world().entities().len(), 5 + 1);
+    assert_eq!(client_app.world().entities().len(), 3 + 1);
 
     // add B to client
     server_app.world_mut().syscall((client_id, B), add_attribute);
@@ -196,7 +196,7 @@ fn basic_visibility()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentB>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 5 + 2);
+    assert_eq!(client_app.world().entities().len(), 3 + 2);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -237,7 +237,7 @@ fn connect_after_global_vis_spawn()
     server_app.update();
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 
     // connect after spawn
     let _client_id = common::connect(&mut server_app, &mut client_app, 1);
@@ -250,7 +250,7 @@ fn connect_after_global_vis_spawn()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 5 + 1);
+    assert_eq!(client_app.world().entities().len(), 3 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -291,7 +291,7 @@ fn connect_after_empty_vis_spawn()
     server_app.update();
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 
     // connect after spawn
     let _client_id = common::connect(&mut server_app, &mut client_app, 1);
@@ -300,7 +300,7 @@ fn connect_after_empty_vis_spawn()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -341,7 +341,7 @@ fn connect_after_nonempty_vis_spawn()
     server_app.update();
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 
     // connect after spawn
     let client_id = common::connect(&mut server_app, &mut client_app, 1);
@@ -350,7 +350,7 @@ fn connect_after_nonempty_vis_spawn()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 
     // add attribute
     server_app.world_mut().syscall((client_id, A), add_attribute);
@@ -363,7 +363,7 @@ fn connect_after_nonempty_vis_spawn()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 5 + 1);
+    assert_eq!(client_app.world().entities().len(), 3 + 1);
 }
 
 // //-------------------------------------------------------------------------------------------------------------------
@@ -490,7 +490,7 @@ fn connect_after_nonempty_vis_spawn()
 //         .world_mut()
 //         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
 //         .single(&client_app.world());
-//     assert_eq!(client_app.world().entities().len(), 5 + 2);
+//     assert_eq!(client_app.world().entities().len(), 3 + 2);
 
 //     // disconnect
 //     common::disconnect(&mut server_app, &mut client_app);
@@ -504,7 +504,7 @@ fn connect_after_nonempty_vis_spawn()
 //     client_app.update();
 //     assert_eq!(*client_app.world().resource::<ClientRepairState>(), ClientRepairState::Done);
 
-//     assert_eq!(client_app.world().entities().len(), 5 + 1);
+//     assert_eq!(client_app.world().entities().len(), 3 + 1);
 // }
 
 // //-------------------------------------------------------------------------------------------------------------------
@@ -558,7 +558,7 @@ fn connect_after_nonempty_vis_spawn()
 //         .world_mut()
 //         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
 //         .single(&client_app.world());
-//     assert_eq!(client_app.world().entities().len(), 5 + 2);
+//     assert_eq!(client_app.world().entities().len(), 3 + 2);
 
 //     // disconnect
 //     common::disconnect(&mut server_app, &mut client_app);
@@ -575,7 +575,7 @@ fn connect_after_nonempty_vis_spawn()
 //     client_app.update();
 //     assert_eq!(*client_app.world().resource::<ClientRepairState>(), ClientRepairState::Done);
 
-//     assert_eq!(client_app.world().entities().len(), 5 + 1);
+//     assert_eq!(client_app.world().entities().len(), 3 + 1);
 // }
 
 // //-------------------------------------------------------------------------------------------------------------------
@@ -644,7 +644,7 @@ fn connect_after_nonempty_vis_spawn()
 //         .world_mut()
 //         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
 //         .single(&client_app.world());
-//     assert_eq!(client_app.world().entities().len(), 5 + 1);
+//     assert_eq!(client_app.world().entities().len(), 3 + 1);
 // }
 
 // //-------------------------------------------------------------------------------------------------------------------
@@ -717,7 +717,7 @@ fn connect_after_nonempty_vis_spawn()
 //         .world_mut()
 //         .query_filtered::<Entity, (With<Replicated>, With<ComponentB>)>()
 //         .single(&client_app.world());
-//     assert_eq!(client_app.world().entities().len(), 5 + 2);
+//     assert_eq!(client_app.world().entities().len(), 3 + 2);
 // }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -768,7 +768,7 @@ fn remove_attribute_from_client()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 5 + 1);
+    assert_eq!(client_app.world().entities().len(), 3 + 1);
 
     // remove attribute
     server_app.world_mut().syscall((client_id, A), remove_attribute);
@@ -777,7 +777,7 @@ fn remove_attribute_from_client()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -827,7 +827,7 @@ fn add_remove_attribute_same_tick()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -884,7 +884,7 @@ fn add_remove_add_attribute_same_tick()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 5 + 1);
+    assert_eq!(client_app.world().entities().len(), 3 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -942,13 +942,13 @@ fn multiple_clients_different_entities()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app1.world());
-    assert_eq!(client_app1.world().entities().len(), 5 + 1);
+    assert_eq!(client_app1.world().entities().len(), 3 + 1);
 
     let _client_entity = client_app2
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentB>)>()
         .single(&client_app2.world());
-    assert_eq!(client_app2.world().entities().len(), 5 + 1);
+    assert_eq!(client_app2.world().entities().len(), 3 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -995,7 +995,7 @@ fn vis_added_post_spawn()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 
     // visibility for A
     server_app.world_mut().entity_mut(server_entity).insert(vis!(A));
@@ -1008,7 +1008,7 @@ fn vis_added_post_spawn()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 5 + 1);
+    assert_eq!(client_app.world().entities().len(), 3 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1062,7 +1062,7 @@ fn vis_added_multiple_entities_same_tick()
         .iter_mut(client_app.world_mut())
         .len();
     assert_eq!(num, 2);
-    assert_eq!(client_app.world().entities().len(), 5 + 2);
+    assert_eq!(client_app.world().entities().len(), 3 + 2);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1121,7 +1121,7 @@ fn vis_added_multiple_entities_different_ticks()
         .iter_mut(client_app.world_mut())
         .len();
     assert_eq!(num, 2);
-    assert_eq!(client_app.world().entities().len(), 5 + 2);
+    assert_eq!(client_app.world().entities().len(), 3 + 2);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1172,7 +1172,7 @@ fn vis_removed()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 5 + 1);
+    assert_eq!(client_app.world().entities().len(), 3 + 1);
 
     // remove visibility
     server_app.world_mut().entity_mut(server_entity).remove::<VisibilityCondition>();
@@ -1181,7 +1181,7 @@ fn vis_removed()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1225,7 +1225,7 @@ fn vis_changes_to_empty()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 
     // empty visibility
     server_app.world_mut().entity_mut(server_entity).insert(vis!());
@@ -1234,7 +1234,7 @@ fn vis_changes_to_empty()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1278,7 +1278,7 @@ fn vis_changes_to_global()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 
     // global visibility
     server_app.world_mut().entity_mut(server_entity).insert(vis!(Global));
@@ -1291,7 +1291,7 @@ fn vis_changes_to_global()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 5 + 1);
+    assert_eq!(client_app.world().entities().len(), 3 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1338,7 +1338,7 @@ fn vis_changes()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 
     // change to B
     server_app.world_mut().entity_mut(server_entity).insert(vis!(B));
@@ -1351,7 +1351,7 @@ fn vis_changes()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 5 + 1);
+    assert_eq!(client_app.world().entities().len(), 3 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1398,7 +1398,7 @@ fn vis_changes_twice_same_tick()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 
     // change to B
     server_app.world_mut().entity_mut(server_entity).insert(vis!(B));
@@ -1410,7 +1410,7 @@ fn vis_changes_twice_same_tick()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1457,7 +1457,7 @@ fn vis_added_removed_same_tick()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 
     // insert A
     server_app.world_mut().entity_mut(server_entity).insert(vis!(A));
@@ -1469,7 +1469,7 @@ fn vis_added_removed_same_tick()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1516,7 +1516,7 @@ fn vis_added_removed_added_same_tick()
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert_eq!(client_app.world().entities().len(), 5 + 0);
+    assert_eq!(client_app.world().entities().len(), 3 + 0);
 
     // insert A
     server_app.world_mut().entity_mut(server_entity).insert(vis!(A));
@@ -1535,7 +1535,7 @@ fn vis_added_removed_added_same_tick()
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<ComponentA>)>()
         .single(&client_app.world());
-    assert_eq!(client_app.world().entities().len(), 5 + 1);
+    assert_eq!(client_app.world().entities().len(), 3 + 1);
 }
 
 //-------------------------------------------------------------------------------------------------------------------

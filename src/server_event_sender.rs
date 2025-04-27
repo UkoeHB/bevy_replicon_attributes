@@ -36,7 +36,7 @@ impl<'w, T: Event + Clone> ServerEventSender<'w, T>
     pub fn send(&mut self, attributes: &ClientAttributes, event: T, condition: VisibilityCondition)
     {
         self.writer
-            .send_batch(
+            .write_batch(
                 attributes
                     .evaluate_connected(&condition)
                     .filter_map(|id| self.id_map.get(&NetworkId::new(id)))

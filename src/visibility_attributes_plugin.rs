@@ -39,7 +39,7 @@ fn reset_clients_on_disconnected(
     mut visibility_cache: ResMut<VisibilityCache>,
     client_ids: Query<&NetworkId>,
 ){
-    let client_entity = event.entity();
+    let client_entity = event.target();
     let Ok(client_id) = client_ids.get(client_entity) else { return };
     visibility_cache.remove_client(client_id.get());
 }
@@ -56,7 +56,7 @@ fn reset_clients_on_start_replication(
     mut client_entities: Query<&mut ClientVisibility>,
     client_ids: Query<&NetworkId>,
 ){
-    let client_entity = event.entity();
+    let client_entity = event.target();
     let Ok(client_id) = client_ids.get(client_entity) else {
         // Need to do this because there is a race condition between adding ClientVisibility and adding NetworkId.
         c.entity(client_entity).insert(NeedsVisibilityReset);
@@ -76,7 +76,7 @@ fn fallback_reset_clients_on_network_id(
     mut client_entities: Query<&mut ClientVisibility>,
     client_ids: Query<&NetworkId, With<NeedsVisibilityReset>>,
 ){
-    let client_entity = event.entity();
+    let client_entity = event.target();
     let Ok(client_id) = client_ids.get(client_entity) else { return };
     c.entity(client_entity).remove::<NeedsVisibilityReset>();
     visibility_cache.reset_client(&mut client_entities, Some(client_entity), client_id.get());
@@ -91,7 +91,7 @@ fn repair_clients(
     mut client_entities: Query<&mut ClientVisibility>,
     client_ids: Query<&NetworkId>,
 ){
-    let client_entity = event.entity();
+    let client_entity = event.target();
     let Ok(client_id) = client_ids.get(client_entity) else { return };
     // This will load visibility settings into replicon, which clears visibility when a client disconnects.
     visibility_cache.repair_client(&mut client_entities, Some(client_entity), client_id.get());
